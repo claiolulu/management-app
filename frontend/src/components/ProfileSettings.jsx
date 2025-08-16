@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import '../styles/ProfileSettings.css';
+import config from '../config/api.js';
 
 const ProfileSettings = ({ user, onClose, onUpdateProfile }) => {
   const [profileData, setProfileData] = useState({

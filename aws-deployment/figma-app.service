@@ -1,0 +1,28 @@
+[Unit]
+Description=Figma Web App Backend
+After=network.target
+
+[Service]
+Type=simple
+User=figma-app
+Group=figma-app
+WorkingDirectory=/home/figma-app/app
+ExecStart=/usr/bin/java -Xmx512m -Xms256m -jar -Dspring.profiles.active=production /home/figma-app/app/figma-web-app.jar
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=figma-app
+
+# Environment variables
+EnvironmentFile=/home/figma-app/.env
+
+# Security
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/uploads /var/log/figma-app
+
+[Install]
+WantedBy=multi-user.target
