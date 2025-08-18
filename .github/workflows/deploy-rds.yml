@@ -41,10 +41,18 @@ jobs:
         echo "VITE_API_URL=http://${{ secrets.EC2_HOST }}:5001/api" > .env.production
         npm run build
     
-    - name: Deploy Frontend to S3
+    - name: Deploy Frontend to S3 (Private with CloudFront)
       run: |
         cd frontend
         aws s3 sync dist/ s3://${{ secrets.S3_BUCKET_NAME }}/ --delete
+        
+        # Block public access to S3 bucket (only allow CloudFront)
+        aws s3api put-public-access-block --bucket ${{ secrets.S3_BUCKET_NAME }} --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+        
+        echo "S3 bucket is now private. You need to:"
+        echo "1. Create CloudFront distribution in AWS Console"
+        echo "2. Set Origin Domain to: ${{ secrets.S3_BUCKET_NAME }}.s3.eu-north-1.amazonaws.com"
+        echo "3. Use CloudFront domain in CORS configuration"
     
     - name: Build Backend
       run: |
@@ -178,9 +186,45 @@ jobs:
             exit 1
           fi
           
+          # Also deploy frontend to EC2 with Nginx
+          echo "Setting up frontend on EC2 with Nginx..."
+          sudo apt update && sudo apt install -y nginx
+          sudo rm -rf /var/www/html/*
+          sudo cp -r /opt/figma-web-app/frontend/dist/* /var/www/html/
+          sudo chown -R www-data:www-data /var/www/html
+          
+          # Create Nginx config for React app with API proxy
+          echo 'server {' | sudo tee /etc/nginx/sites-available/figma-app
+          echo '    listen 80;' | sudo tee -a /etc/nginx/sites-available/figma-app  
+          echo '    server_name _;' | sudo tee -a /etc/nginx/sites-available/figma-app
+          echo '    root /var/www/html;' | sudo tee -a /etc/nginx/sites-available/figma-app
+          echo '    index index.html;' | sudo tee -a /etc/nginx/sites-available/figma-app
+          echo '' | sudo tee -a /etc/nginx/sites-available/figma-app
+          echo '    location / {' | sudo tee -a /etc/nginx/sites-available/figma-app
+          echo '        try_files $uri $uri/ /index.html;' | sudo tee -a /etc/nginx/sites-available/figma-app
+          echo '    }' | sudo tee -a /etc/nginx/sites-available/figma-app
+          echo '' | sudo tee -a /etc/nginx/sites-available/figma-app
+          echo '    location /api/ {' | sudo tee -a /etc/nginx/sites-available/figma-app
+          echo '        proxy_pass http://localhost:5001/api/;' | sudo tee -a /etc/nginx/sites-available/figma-app
+          echo '        proxy_set_header Host $host;' | sudo tee -a /etc/nginx/sites-available/figma-app
+          echo '        proxy_set_header X-Real-IP $remote_addr;' | sudo tee -a /etc/nginx/sites-available/figma-app
+          echo '        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;' | sudo tee -a /etc/nginx/sites-available/figma-app
+          echo '    }' | sudo tee -a /etc/nginx/sites-available/figma-app
+          echo '}' | sudo tee -a /etc/nginx/sites-available/figma-app
+          
+          # Enable site and restart Nginx
+          sudo ln -sf /etc/nginx/sites-available/figma-app /etc/nginx/sites-enabled/
+          sudo rm -f /etc/nginx/sites-enabled/default
+          sudo nginx -t && sudo systemctl restart nginx && sudo systemctl enable nginx
+          
           echo "Deployment completed!"
     
     - name: Show URLs
       run: |
-        echo "Frontend: https://${{ secrets.S3_BUCKET_NAME }}.s3-website-eu-north-1.amazonaws.com"
-        echo "Backend API: http://${{ secrets.EC2_HOST }}:5001/api"
+        echo "Frontend (S3 - PRIVATE): Bucket content uploaded to s3://${{ secrets.S3_BUCKET_NAME }}"
+        echo "Frontend (EC2 - SECURE): http://${{ secrets.EC2_HOST }} (Nginx serving frontend + API proxy)"
+        echo "Backend API (Direct): http://${{ secrets.EC2_HOST }}:5001/api"
+        echo ""
+        echo "🔒 Security: S3 bucket is now private, only accessible via CloudFront"
+        echo "🌐 Recommended: Use the EC2 frontend URL for secure HTTP access"
+        echo "📋 Next step: Set up SSL certificate for HTTPS on EC2"
