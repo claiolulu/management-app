@@ -46,10 +46,7 @@ jobs:
         cd frontend
         aws s3 sync dist/ s3://${{ secrets.S3_BUCKET_NAME }}/ --delete
         
-        # Configure bucket for static website hosting
-        aws s3 website s3://${{ secrets.S3_BUCKET_NAME }} --index-document index.html --error-document error.html
-        
-        # Set bucket policy for public read access
+        # Set bucket policy for public read access (if permitted)
         aws s3api put-bucket-policy --bucket ${{ secrets.S3_BUCKET_NAME }} --policy '{
           "Version": "2012-10-17",
           "Statement": [
@@ -60,10 +57,18 @@ jobs:
               "Resource": "arn:aws:s3:::'${{ secrets.S3_BUCKET_NAME }}'/*"
             }
           ]
-        }'
+        }' || echo "Warning: Could not set bucket policy. May need manual configuration."
         
-        echo "Note: If website is still not accessible, you may need to manually"
-        echo "disable 'Block public access' in the S3 bucket settings via AWS Console"
+        echo "Files uploaded to S3 bucket successfully!"
+        echo ""
+        echo "⚠️  Manual AWS Console Configuration Required:"
+        echo "1. Go to S3 Console → Select bucket '${{ secrets.S3_BUCKET_NAME }}'"
+        echo "2. Go to 'Properties' tab → Scroll to 'Static website hosting'"
+        echo "3. Click 'Edit' → Enable 'Static website hosting'"
+        echo "4. Set Index document: index.html"
+        echo "5. Set Error document: error.html"
+        echo "6. Go to 'Permissions' tab → Disable 'Block public access' if needed"
+        echo "7. Ensure bucket policy allows public read access"
     
     - name: Build Backend
       run: |
@@ -232,10 +237,12 @@ jobs:
     
     - name: Show URLs
       run: |
-        echo "Frontend (S3 - PUBLIC): http://${{ secrets.S3_BUCKET_NAME }}.s3-website-eu-north-1.amazonaws.com"
-        echo "Frontend (EC2 - Alternative): http://${{ secrets.EC2_HOST }} (Nginx serving frontend + API proxy)"
+        echo "Files uploaded to S3 bucket: s3://${{ secrets.S3_BUCKET_NAME }}"
+        echo "Frontend (EC2 - Ready to use): http://${{ secrets.EC2_HOST }} (Nginx serving frontend + API proxy)"
         echo "Backend API (Direct): http://${{ secrets.EC2_HOST }}:5001/api"
         echo ""
-        echo "🌐 S3 bucket is now publicly accessible via HTTP"
-        echo "🔧 Both frontend options available - S3 (primary) and EC2 (backup)"
-        echo "📋 Note: CORS configured for both frontend URLs"
+        echo "🔧 S3 Static Website Setup (Manual):"
+        echo "After manual S3 configuration, frontend will be available at:"
+        echo "http://${{ secrets.S3_BUCKET_NAME }}.s3-website-eu-north-1.amazonaws.com"
+        echo ""
+        echo "� Immediate Access: Use EC2 frontend URL above (no manual setup needed)"
