@@ -1,0 +1,41 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      java: corretto17
+      nodejs: 18
+    commands:
+      - echo "Installing dependencies..."
+      
+  pre_build:
+    commands:
+      - echo "Pre-build phase started on `date`"
+      - echo "Installing frontend dependencies"
+      - cd frontend
+      - npm install
+      - cd ../backend
+      - chmod +x mvnw
+      
+  build:
+    commands:
+      - echo "Build phase started on `date`"
+      - echo "Building Spring Boot application"
+      - ./mvnw clean package -DskipTests
+      - cd ../frontend
+      - echo "Building React application"
+      - npm run build
+      - cd ..
+      
+  post_build:
+    commands:
+      - echo "Post-build phase started on `date`"
+      - echo "Build completed on `date`"
+      
+artifacts:
+  files:
+    - backend/target/*.jar
+    - frontend/dist/**/*
+    - aws-deployment/**/*
+    - appspec.yml
+  name: figma-web-app-$(date +%Y-%m-%d)
