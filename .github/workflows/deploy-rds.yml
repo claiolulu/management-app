@@ -102,6 +102,37 @@ jobs:
           sudo mkdir -p /var/log/figma-app
           sudo chown -R ubuntu:ubuntu /var/log/figma-app
           
+          # Create config directory and production configuration
+          sudo mkdir -p /opt/figma-web-app/backend/config
+          sudo rm -f /opt/figma-web-app/backend/config/application-production.yml
+          echo 'spring:' | sudo tee /opt/figma-web-app/backend/config/application-production.yml
+          echo '  profiles:' | sudo tee -a /opt/figma-web-app/backend/config/application-production.yml
+          echo '    active: production' | sudo tee -a /opt/figma-web-app/backend/config/application-production.yml
+          echo '  datasource:' | sudo tee -a /opt/figma-web-app/backend/config/application-production.yml
+          echo "    url: jdbc:mysql://${{ secrets.RDS_ENDPOINT }}:3306/${{ secrets.RDS_DATABASE }}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" | sudo tee -a /opt/figma-web-app/backend/config/application-production.yml
+          echo "    username: ${{ secrets.RDS_USERNAME }}" | sudo tee -a /opt/figma-web-app/backend/config/application-production.yml
+          echo '    password: ${DB_PASSWORD}' | sudo tee -a /opt/figma-web-app/backend/config/application-production.yml
+          echo '    driver-class-name: com.mysql.cj.jdbc.Driver' | sudo tee -a /opt/figma-web-app/backend/config/application-production.yml
+          echo '  jpa:' | sudo tee -a /opt/figma-web-app/backend/config/application-production.yml
+          echo '    hibernate:' | sudo tee -a /opt/figma-web-app/backend/config/application-production.yml
+          echo '      ddl-auto: update' | sudo tee -a /opt/figma-web-app/backend/config/application-production.yml
+          echo '    show-sql: false' | sudo tee -a /opt/figma-web-app/backend/config/application-production.yml
+          echo '    properties:' | sudo tee -a /opt/figma-web-app/backend/config/application-production.yml
+          echo '      hibernate:' | sudo tee -a /opt/figma-web-app/backend/config/application-production.yml
+          echo '        dialect: org.hibernate.dialect.MySQL8Dialect' | sudo tee -a /opt/figma-web-app/backend/config/application-production.yml
+          echo 'jwt:' | sudo tee -a /opt/figma-web-app/backend/config/application-production.yml
+          echo '  secret: ${JWT_SECRET}' | sudo tee -a /opt/figma-web-app/backend/config/application-production.yml
+          echo 'admin:' | sudo tee -a /opt/figma-web-app/backend/config/application-production.yml
+          echo '  password: ${ADMIN_PASSWORD}' | sudo tee -a /opt/figma-web-app/backend/config/application-production.yml
+          echo 'logging:' | sudo tee -a /opt/figma-web-app/backend/config/application-production.yml
+          echo '  file:' | sudo tee -a /opt/figma-web-app/backend/config/application-production.yml
+          echo '    name: /var/log/figma-app/figma-app.log' | sudo tee -a /opt/figma-web-app/backend/config/application-production.yml
+          echo '  level:' | sudo tee -a /opt/figma-web-app/backend/config/application-production.yml
+          echo '    com.figmaapp: INFO' | sudo tee -a /opt/figma-web-app/backend/config/application-production.yml
+          echo '    root: WARN' | sudo tee -a /opt/figma-web-app/backend/config/application-production.yml
+          echo 'server:' | sudo tee -a /opt/figma-web-app/backend/config/application-production.yml
+          echo '  port: 5001' | sudo tee -a /opt/figma-web-app/backend/config/application-production.yml
+          
           # Create systemd service
           sudo rm -f /etc/systemd/system/figma-app.service
           echo '[Unit]' | sudo tee /etc/systemd/system/figma-app.service
@@ -112,7 +143,7 @@ jobs:
           echo 'Type=simple' | sudo tee -a /etc/systemd/system/figma-app.service
           echo 'User=ubuntu' | sudo tee -a /etc/systemd/system/figma-app.service
           echo 'WorkingDirectory=/opt/figma-web-app/backend' | sudo tee -a /etc/systemd/system/figma-app.service
-          echo 'ExecStart=/usr/bin/java -jar /opt/figma-web-app/backend/target/figma-web-app-backend-1.0.0.jar' | sudo tee -a /etc/systemd/system/figma-app.service
+          echo 'ExecStart=/usr/bin/java -jar -Dspring.profiles.active=production -Dspring.config.location=file:config/application-production.yml /opt/figma-web-app/backend/target/figma-web-app-backend-1.0.0.jar' | sudo tee -a /etc/systemd/system/figma-app.service
           echo 'Restart=always' | sudo tee -a /etc/systemd/system/figma-app.service
           echo 'RestartSec=10' | sudo tee -a /etc/systemd/system/figma-app.service
           echo 'StandardOutput=journal' | sudo tee -a /etc/systemd/system/figma-app.service
