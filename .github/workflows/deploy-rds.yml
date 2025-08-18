@@ -1,7 +1,9 @@
-name: Deploy to AWS (S3 + EC2 + RDS)
-
-on:
-  push:
+name: Deploy to AWS (S3 + EC2 + RDS)    - name: Build Frontend
+      run: |
+        cd frontend
+        npm ci
+        echo "VITE_API_URL=https://${{ secrets.EC2_HOST }}/api" > .env.production
+        npm run build  push:
     branches:
       - main
   workflow_dispatch:
@@ -38,7 +40,7 @@ jobs:
       run: |
         cd frontend
         npm ci
-        echo "VITE_API_URL=http://${{ secrets.EC2_HOST }}/api" > .env.production
+        echo "VITE_API_URL=http://${{ secrets.EC2_HOST }}:5001/api" > .env.production
         npm run build
     
     - name: Deploy Frontend to S3

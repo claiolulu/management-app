@@ -251,7 +251,7 @@ Once this is working, you can enhance it with:
    - Add more comprehensive deployment verification
    - Set up monitoring and alerts
 
-3. **SSL Certificate**:
+3. **SSL Certificate** (See detailed guide below ⬇️):
    - Add Let's Encrypt SSL certificate
    - Configure HTTPS redirect
 
@@ -262,6 +262,237 @@ Once this is working, you can enhance it with:
 5. **Rolling Deployments**:
    - Zero-downtime deployment strategies
    - Blue-green deployment setup
+
+---
+
+## 🔒 SSL Setup Guide (FREE Self-Signed Certificate)
+
+This section shows how to add **FREE SSL/HTTPS** to your deployment using self-signed certificates. Perfect for development and testing environments.
+
+### Why Add SSL?
+
+- ✅ **Fixes Mixed Content Issues**: HTTPS frontend can call HTTPS backend
+- ✅ **Browser Security**: Modern browsers prefer HTTPS
+- ✅ **Production Ready**: Real SSL setup (just not CA-signed)
+- ✅ **Completely FREE**: No domain or certificate costs
+
+### 🔒 **STEP 1: SSH into Your EC2**
+
+```bash
+ssh -i your-key.pem ubuntu@13.61.195.234
+```
+
+### 🔒 **STEP 2: Create SSL Certificates**
+
+Run these commands **one by one** on your EC2:
+
+```bash
+# Create directories
+sudo mkdir -p /etc/ssl/private
+sudo mkdir -p /etc/ssl/certs
+```
+
+```bash
+# Generate self-signed certificate (replace with your actual EC2 IP)
+sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+    -keyout /etc/ssl/private/nginx-selfsigned.key \
+    -out /etc/ssl/certs/nginx-selfsigned.crt \
+    -subj "/C=US/ST=Stockholm/L=Stockholm/O=FigmaApp/CN=13.61.195.234"
+```
+
+```bash
+# Generate DH parameters (this takes 2-3 minutes)
+sudo openssl dhparam -out /etc/ssl/certs/dhparam.pem 2048
+```
+
+```bash
+# Set proper permissions
+sudo chmod 600 /etc/ssl/private/nginx-selfsigned.key
+sudo chmod 644 /etc/ssl/certs/nginx-selfsigned.crt
+sudo chmod 644 /etc/ssl/certs/dhparam.pem
+```
+
+### 🔒 **STEP 3: Create Nginx SSL Configuration**
+
+```bash
+# Backup existing config
+sudo cp /etc/nginx/sites-available/figma-app /etc/nginx/sites-available/figma-app.backup
+```
+
+```bash
+# Create SSL config file
+sudo tee /etc/nginx/sites-available/figma-app-ssl << 'EOF'
+# HTTP to HTTPS redirect
+server {
+    listen 80;
+    server_name _;
+    return 301 https://$host$request_uri;
+}
+
+# HTTPS server
+server {
+    listen 443 ssl http2;
+    server_name _;
+    
+    # SSL Configuration
+    ssl_certificate /etc/ssl/certs/nginx-selfsigned.crt;
+    ssl_certificate_key /etc/ssl/private/nginx-selfsigned.key;
+    ssl_dhparam /etc/ssl/certs/dhparam.pem;
+    
+    # SSL Settings
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+    ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384;
+    ssl_session_timeout 10m;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_tickets off;
+    
+    # Security Headers
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload";
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options DENY;
+    add_header X-XSS-Protection "1; mode=block";
+    
+    # Frontend files
+    root /var/www/html;
+    index index.html;
+    
+    # Frontend routing (React Router)
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+    
+    # API proxy to backend
+    location /api/ {
+        proxy_pass http://localhost:5001/api/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+    }
+}
+EOF
+```
+
+### 🔒 **STEP 4: Enable SSL Configuration**
+
+```bash
+# Remove old config
+sudo rm -f /etc/nginx/sites-enabled/figma-app
+
+# Enable SSL config
+sudo ln -s /etc/nginx/sites-available/figma-app-ssl /etc/nginx/sites-enabled/
+
+# Test configuration
+sudo nginx -t
+
+# If test passes, reload Nginx
+sudo systemctl reload nginx
+
+# Check status
+sudo systemctl status nginx
+```
+
+### 🔒 **STEP 5: Update AWS Security Group**
+
+1. **Go to AWS Console** → EC2 → Security Groups
+2. **Find your EC2 instance's security group**
+3. **Add Inbound Rule**:
+   - **Type**: HTTPS
+   - **Port**: 443
+   - **Source**: Anywhere-IPv4 (0.0.0.0/0)
+   - **Description**: HTTPS SSL access
+
+### 🔒 **STEP 6: Update Frontend Configuration**
+
+Update your frontend to use HTTPS endpoints:
+
+**Check if already configured:** Your code might already have these settings!
+
+In your local project, update `.env.production` (if not already done):
+```bash
+VITE_API_URL=https://13.61.195.234/api
+```
+
+Update `backend/src/main/resources/application.yml` CORS section (if not already done):
+```yaml
+cors:
+  allowed-origins: 
+    - http://localhost:3000
+    - http://localhost:5173
+    - https://13.61.195.234  # Add HTTPS version
+    - http://13.61.195.234   # Keep HTTP for redirect
+```
+
+**💡 Tip:** Check your current files first - these changes may already be configured!
+
+### 🔒 **STEP 7: Deploy and Test**
+
+1. **Commit and push your changes**:
+   ```bash
+   git add .
+   git commit -m "Add SSL support with HTTPS endpoints"
+   git push origin main
+   ```
+
+2. **Test HTTPS access**:
+   - **Frontend**: `https://YOUR_EC2_IP`
+   - **Backend API**: `https://YOUR_EC2_IP/api`
+
+3. **Browser Security Warning**:
+   - You'll see "Your connection is not private"
+   - Click **"Advanced"** → **"Proceed to site"**
+   - This is normal for self-signed certificates
+
+### 🎯 **SSL Benefits Achieved**
+
+- ✅ **HTTPS Frontend**: Secure frontend hosting
+- ✅ **HTTPS API**: Secure backend API calls
+- ✅ **Mixed Content Fixed**: No browser blocking
+- ✅ **Automatic HTTP→HTTPS**: Redirect all traffic
+- ✅ **Security Headers**: Enhanced browser security
+- ✅ **$0 Cost**: Completely free solution
+
+### 🔄 **Upgrading to Production SSL**
+
+For production, you can upgrade to a real SSL certificate:
+
+1. **Get a domain name** (or use Route53)
+2. **Use Let's Encrypt** (FREE certificates)
+3. **Replace self-signed** with real certificates
+4. **No browser warnings** in production
+
+### 🚨 **SSL Troubleshooting**
+
+**Issue**: Nginx won't start after SSL config
+```bash
+# Check nginx configuration syntax
+sudo nginx -t
+
+# Check SSL certificate files exist
+ls -la /etc/ssl/certs/nginx-selfsigned.crt
+ls -la /etc/ssl/private/nginx-selfsigned.key
+
+# Check nginx error logs
+sudo tail -f /var/log/nginx/error.log
+```
+
+**Issue**: Still getting HTTP instead of HTTPS
+```bash
+# Verify HTTPS is listening
+sudo netstat -tlnp | grep :443
+
+# Check if redirect is working
+curl -I http://YOUR_EC2_IP
+# Should return: Location: https://YOUR_EC2_IP/
+```
+
+**Issue**: Browser shows "NET::ERR_CERT_AUTHORITY_INVALID"
+- This is **normal** for self-signed certificates
+- Click "Advanced" → "Proceed to site"
+- Consider using Let's Encrypt for production
 
 ---
 
