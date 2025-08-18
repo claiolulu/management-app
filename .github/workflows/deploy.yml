@@ -90,49 +90,55 @@ jobs:
           
           # Create RDS database configuration
           sudo mkdir -p /opt/figma-web-app/backend/config
-          sudo tee /opt/figma-web-app/backend/config/application-production.yml > /dev/null << 'DBEOF'
-spring:
-  datasource:
-    url: jdbc:mysql://${{ secrets.RDS_ENDPOINT }}:3306/${{ secrets.RDS_DATABASE }}?useSSL=false&allowPublicKeyRetrieval=true
-    username: ${{ secrets.RDS_USERNAME }}
-    password: ${{ secrets.RDS_PASSWORD }}
-    driver-class-name: com.mysql.cj.jdbc.Driver
-  
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: false
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.MySQLDialect
-
-  web:
-    cors:
-      allowed-origins: "https://${{ secrets.S3_BUCKET_NAME }}.s3-website.eu-north-1.amazonaws.com"
-      allowed-methods: "GET,POST,PUT,DELETE,OPTIONS"
-      allowed-headers: "*"
-      allow-credentials: true
-
-server:
-  port: 5001
-
-jwt:
-  secret: ${{ secrets.JWT_SECRET }}
-  
-logging:
-  level:
-    com.figma: INFO
-    root: WARN
-  file:
-    name: /var/log/figma-app/figma-app.log
-    max-size: 10MB
-    max-history: 5
-DBEOF
+          cat > /tmp/app-config.yml << 'CONFIGEOF'
+          spring:
+            datasource:
+              url: jdbc:mysql://RDS_ENDPOINT_PLACEHOLDER:3306/RDS_DATABASE_PLACEHOLDER?useSSL=false&allowPublicKeyRetrieval=true
+              username: RDS_USERNAME_PLACEHOLDER
+              password: RDS_PASSWORD_PLACEHOLDER
+              driver-class-name: com.mysql.cj.jdbc.Driver
+            jpa:
+              hibernate:
+                ddl-auto: update
+              show-sql: false
+              properties:
+                hibernate:
+                  dialect: org.hibernate.dialect.MySQLDialect
+            web:
+              cors:
+                allowed-origins: "https://S3_BUCKET_PLACEHOLDER.s3-website.eu-north-1.amazonaws.com"
+                allowed-methods: "GET,POST,PUT,DELETE,OPTIONS"
+                allowed-headers: "*"
+                allow-credentials: true
+          server:
+            port: 5001
+          jwt:
+            secret: JWT_SECRET_PLACEHOLDER
+          logging:
+            level:
+              com.figma: INFO
+              root: WARN
+            file:
+              name: /var/log/figma-app/figma-app.log
+              max-size: 10MB
+              max-history: 5
+          CONFIGEOF
+          
+          # Replace placeholders with actual values
+          sed -i "s|RDS_ENDPOINT_PLACEHOLDER|${{ secrets.RDS_ENDPOINT }}|g" /tmp/app-config.yml
+          sed -i "s|RDS_DATABASE_PLACEHOLDER|${{ secrets.RDS_DATABASE }}|g" /tmp/app-config.yml
+          sed -i "s|RDS_USERNAME_PLACEHOLDER|${{ secrets.RDS_USERNAME }}|g" /tmp/app-config.yml
+          sed -i "s|RDS_PASSWORD_PLACEHOLDER|${{ secrets.RDS_PASSWORD }}|g" /tmp/app-config.yml
+          sed -i "s|S3_BUCKET_PLACEHOLDER|${{ secrets.S3_BUCKET_NAME }}|g" /tmp/app-config.yml
+          sed -i "s|JWT_SECRET_PLACEHOLDER|${{ secrets.JWT_SECRET }}|g" /tmp/app-config.yml
+          
+          sudo mv /tmp/app-config.yml /opt/figma-web-app/backend/config/application-production.yml
           
           # Create log directory
           sudo mkdir -p /var/log/figma-app
           sudo chown -R ubuntu:ubuntu /var/log/figma-app
           
+          # Create systemd service
           sudo tee /etc/systemd/system/figma-app.service > /dev/null << 'SERVICEEOF'
           [Unit]
           Description=Figma Web App Backend
