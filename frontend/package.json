@@ -1,6 +1,7 @@
 {
   "name": "figma-web-app-client",
   "version": "0.1.0",
+  "type": "module",
   "private": true,
   "dependencies": {
     "react": "^18.2.0",
