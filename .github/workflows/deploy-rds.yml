@@ -41,18 +41,29 @@ jobs:
         echo "VITE_API_URL=http://${{ secrets.EC2_HOST }}:5001/api" > .env.production
         npm run build
     
-    - name: Deploy Frontend to S3 (Private with CloudFront)
+    - name: Deploy Frontend to S3
       run: |
         cd frontend
         aws s3 sync dist/ s3://${{ secrets.S3_BUCKET_NAME }}/ --delete
         
-        # Block public access to S3 bucket (only allow CloudFront)
-        aws s3api put-public-access-block --bucket ${{ secrets.S3_BUCKET_NAME }} --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+        # Enable public access for S3 static website hosting
+        aws s3api delete-public-access-block --bucket ${{ secrets.S3_BUCKET_NAME }}
         
-        echo "S3 bucket is now private. You need to:"
-        echo "1. Create CloudFront distribution in AWS Console"
-        echo "2. Set Origin Domain to: ${{ secrets.S3_BUCKET_NAME }}.s3.eu-north-1.amazonaws.com"
-        echo "3. Use CloudFront domain in CORS configuration"
+        # Configure bucket for static website hosting
+        aws s3 website s3://${{ secrets.S3_BUCKET_NAME }} --index-document index.html --error-document error.html
+        
+        # Set bucket policy for public read access
+        aws s3api put-bucket-policy --bucket ${{ secrets.S3_BUCKET_NAME }} --policy '{
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": "*",
+              "Action": "s3:GetObject",
+              "Resource": "arn:aws:s3:::'${{ secrets.S3_BUCKET_NAME }}'/*"
+            }
+          ]
+        }'
     
     - name: Build Backend
       run: |
@@ -221,10 +232,10 @@ jobs:
     
     - name: Show URLs
       run: |
-        echo "Frontend (S3 - PRIVATE): Bucket content uploaded to s3://${{ secrets.S3_BUCKET_NAME }}"
-        echo "Frontend (EC2 - SECURE): http://${{ secrets.EC2_HOST }} (Nginx serving frontend + API proxy)"
+        echo "Frontend (S3 - PUBLIC): http://${{ secrets.S3_BUCKET_NAME }}.s3-website-eu-north-1.amazonaws.com"
+        echo "Frontend (EC2 - Alternative): http://${{ secrets.EC2_HOST }} (Nginx serving frontend + API proxy)"
         echo "Backend API (Direct): http://${{ secrets.EC2_HOST }}:5001/api"
         echo ""
-        echo "🔒 Security: S3 bucket is now private, only accessible via CloudFront"
-        echo "🌐 Recommended: Use the EC2 frontend URL for secure HTTP access"
-        echo "📋 Next step: Set up SSL certificate for HTTPS on EC2"
+        echo "🌐 S3 bucket is now publicly accessible via HTTP"
+        echo "🔧 Both frontend options available - S3 (primary) and EC2 (backup)"
+        echo "📋 Note: CORS configured for both frontend URLs"
