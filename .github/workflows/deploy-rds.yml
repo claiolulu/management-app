@@ -95,8 +95,9 @@ jobs:
           echo "ADMIN_PASSWORD=admin123" | sudo tee -a /opt/figma-web-app/backend/.env > /dev/null
           
           # Replace database configuration in application.yml
-          sudo sed -i "s|localhost:3306/figma_app|${{ secrets.RDS_ENDPOINT }}:3306/${{ secrets.RDS_DATABASE }}|g" /opt/figma-web-app/backend/src/main/resources/application.yml
-          sudo sed -i "s|username: root|username: ${{ secrets.RDS_USERNAME }}|g" /opt/figma-web-app/backend/src/main/resources/application.yml
+          sudo sed -i "s|url: jdbc:mysql://localhost:3306/figma_app|url: \${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/figma_app}|g" /opt/figma-web-app/backend/src/main/resources/application.yml
+          sudo sed -i "s|username: root|username: \${SPRING_DATASOURCE_USERNAME:root}|g" /opt/figma-web-app/backend/src/main/resources/application.yml
+          sudo sed -i "s|password:|password: \${SPRING_DATASOURCE_PASSWORD:}|g" /opt/figma-web-app/backend/src/main/resources/application.yml
           
           # Create log directory
           sudo mkdir -p /var/log/figma-app
@@ -137,7 +138,15 @@ jobs:
           echo "Generated production configuration:"
           sudo cat /opt/figma-web-app/backend/config/application-production.yml
           
-          # Test database connection with the production config
+          # Also show the main application.yml for comparison
+          echo "Main application.yml configuration:"
+          sudo cat /opt/figma-web-app/backend/src/main/resources/application.yml
+          
+          # Test RDS connection using MySQL client if available
+          echo "Testing direct MySQL connection..."
+          mysql -h ${{ secrets.RDS_ENDPOINT }} -P 3306 -u ${{ secrets.RDS_USERNAME }} -p${{ secrets.RDS_PASSWORD }} -e "SELECT 1;" ${{ secrets.RDS_DATABASE }} && echo "MySQL connection successful" || echo "MySQL connection failed"
+          
+          # Try simple connection test with Java
           echo "Testing database connection with production config..."
           cd /opt/figma-web-app/backend
           timeout 30 java -jar -Dspring.profiles.active=production -Dspring.config.location=file:/opt/figma-web-app/backend/config/application-production.yml target/figma-web-app-backend-1.0.0.jar --spring.main.web-application-type=none --spring.jpa.hibernate.ddl-auto=validate 2>&1 | head -20 || echo "Direct test failed, proceeding with systemd service..."
@@ -155,7 +164,10 @@ jobs:
           echo "Environment=DB_PASSWORD=${{ secrets.RDS_PASSWORD }}" | sudo tee -a /etc/systemd/system/figma-app.service
           echo "Environment=JWT_SECRET=${{ secrets.JWT_SECRET }}" | sudo tee -a /etc/systemd/system/figma-app.service
           echo 'Environment=ADMIN_PASSWORD=admin123' | sudo tee -a /etc/systemd/system/figma-app.service
-          echo 'ExecStart=/usr/bin/java -jar -Dspring.profiles.active=production -Dspring.config.location=file:/opt/figma-web-app/backend/config/application-production.yml /opt/figma-web-app/backend/target/figma-web-app-backend-1.0.0.jar' | sudo tee -a /etc/systemd/system/figma-app.service
+          echo "Environment=SPRING_DATASOURCE_URL=jdbc:mysql://${{ secrets.RDS_ENDPOINT }}:3306/${{ secrets.RDS_DATABASE }}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" | sudo tee -a /etc/systemd/system/figma-app.service
+          echo "Environment=SPRING_DATASOURCE_USERNAME=${{ secrets.RDS_USERNAME }}" | sudo tee -a /etc/systemd/system/figma-app.service
+          echo "Environment=SPRING_DATASOURCE_PASSWORD=${{ secrets.RDS_PASSWORD }}" | sudo tee -a /etc/systemd/system/figma-app.service
+          echo 'ExecStart=/usr/bin/java -jar -Dspring.profiles.active=production /opt/figma-web-app/backend/target/figma-web-app-backend-1.0.0.jar' | sudo tee -a /etc/systemd/system/figma-app.service
           echo 'Restart=always' | sudo tee -a /etc/systemd/system/figma-app.service
           echo 'RestartSec=10' | sudo tee -a /etc/systemd/system/figma-app.service
           echo 'StandardOutput=journal' | sudo tee -a /etc/systemd/system/figma-app.service
