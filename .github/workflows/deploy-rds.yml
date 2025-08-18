@@ -38,7 +38,7 @@ jobs:
       run: |
         cd frontend
         npm ci
-        echo "VITE_API_URL=http://${{ secrets.EC2_HOST }}:5001/api" > .env.production
+        echo "VITE_API_URL=http://${{ secrets.EC2_HOST }}/api" > .env.production
         npm run build
     
     - name: Deploy Frontend to S3
