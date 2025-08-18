@@ -1,0 +1,147 @@
+name: Deploy to AWS (S3 + EC2 + RDS)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+    
+    - name: Setup Java
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: eu-north-1
+    
+    - name: Build Frontend
+      run: |
+        cd frontend
+        npm ci
+        echo "VITE_API_URL=http://${{ secrets.EC2_HOST }}:5001/api" > .env.production
+        npm run build
+    
+    - name: Deploy Frontend to S3
+      run: |
+        cd frontend
+        aws s3 sync dist/ s3://${{ secrets.S3_BUCKET_NAME }}/ --delete
+    
+    - name: Build Backend
+      run: |
+        cd backend
+        chmod +x mvnw
+        ./mvnw clean package -DskipTests
+    
+    - name: Deploy Backend to EC2
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USER }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        port: 22
+        script: |
+          echo "Starting RDS deployment..."
+          
+          sudo systemctl stop figma-app || true
+          
+          # Test RDS connectivity
+          echo "Testing RDS connection..."
+          timeout 10 bash -c "</dev/tcp/${{ secrets.RDS_ENDPOINT }}/3306" && echo "RDS connection successful" || { echo "RDS connection failed"; exit 1; }
+          
+          if [ -d "/opt/figma-web-app/.git" ]; then
+            cd /opt/figma-web-app
+            sudo git fetch origin
+            sudo git reset --hard origin/main
+            sudo git clean -fd
+          else
+            sudo rm -rf /opt/figma-web-app
+            sudo git clone https://github.com/${{ github.repository }}.git /opt/figma-web-app
+            sudo chown -R ubuntu:ubuntu /opt/figma-web-app
+          fi
+          
+          cd /opt/figma-web-app/backend
+          sudo chmod +x mvnw
+          sudo ./mvnw clean package -DskipTests
+          
+          if [ ! -f "target/figma-web-app-backend-1.0.0.jar" ]; then
+            echo "JAR file not found!"
+            sudo ls -la target/
+            exit 1
+          fi
+          
+          # Create environment variables file
+          echo "DB_PASSWORD=${{ secrets.RDS_PASSWORD }}" | sudo tee /opt/figma-web-app/backend/.env > /dev/null
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" | sudo tee -a /opt/figma-web-app/backend/.env > /dev/null
+          echo "ADMIN_PASSWORD=admin123" | sudo tee -a /opt/figma-web-app/backend/.env > /dev/null
+          
+          # Replace database configuration in application.yml
+          sudo sed -i "s|localhost:3306/figma_app|${{ secrets.RDS_ENDPOINT }}:3306/${{ secrets.RDS_DATABASE }}|g" /opt/figma-web-app/backend/src/main/resources/application.yml
+          sudo sed -i "s|username: root|username: ${{ secrets.RDS_USERNAME }}|g" /opt/figma-web-app/backend/src/main/resources/application.yml
+          
+          # Create log directory
+          sudo mkdir -p /var/log/figma-app
+          sudo chown -R ubuntu:ubuntu /var/log/figma-app
+          
+          # Create systemd service
+          sudo rm -f /etc/systemd/system/figma-app.service
+          echo '[Unit]' | sudo tee /etc/systemd/system/figma-app.service
+          echo 'Description=Figma Web App Backend' | sudo tee -a /etc/systemd/system/figma-app.service
+          echo 'After=network.target' | sudo tee -a /etc/systemd/system/figma-app.service
+          echo '' | sudo tee -a /etc/systemd/system/figma-app.service
+          echo '[Service]' | sudo tee -a /etc/systemd/system/figma-app.service
+          echo 'Type=simple' | sudo tee -a /etc/systemd/system/figma-app.service
+          echo 'User=ubuntu' | sudo tee -a /etc/systemd/system/figma-app.service
+          echo 'WorkingDirectory=/opt/figma-web-app/backend' | sudo tee -a /etc/systemd/system/figma-app.service
+          echo 'ExecStart=/usr/bin/java -jar /opt/figma-web-app/backend/target/figma-web-app-backend-1.0.0.jar' | sudo tee -a /etc/systemd/system/figma-app.service
+          echo 'Restart=always' | sudo tee -a /etc/systemd/system/figma-app.service
+          echo 'RestartSec=10' | sudo tee -a /etc/systemd/system/figma-app.service
+          echo 'StandardOutput=journal' | sudo tee -a /etc/systemd/system/figma-app.service
+          echo 'StandardError=journal' | sudo tee -a /etc/systemd/system/figma-app.service
+          echo '' | sudo tee -a /etc/systemd/system/figma-app.service
+          echo '[Install]' | sudo tee -a /etc/systemd/system/figma-app.service
+          echo 'WantedBy=multi-user.target' | sudo tee -a /etc/systemd/system/figma-app.service
+          
+          sudo systemctl daemon-reload
+          sudo chown -R ubuntu:ubuntu /opt/figma-web-app
+          sudo chmod +x /opt/figma-web-app/backend/target/*.jar
+          sudo systemctl start figma-app
+          
+          sleep 15
+          
+          if sudo systemctl is-active --quiet figma-app; then
+            echo "Backend service is running successfully"
+            echo "Testing API endpoint..."
+            curl -f http://localhost:5001/api/auth/health && echo "API health check passed" || echo "API health check failed"
+          else
+            echo "Backend service failed to start"
+            sudo systemctl status figma-app
+            sudo journalctl -u figma-app -n 20
+            exit 1
+          fi
+          
+          echo "Deployment completed!"
+    
+    - name: Show URLs
+      run: |
+        echo "Frontend: https://${{ secrets.S3_BUCKET_NAME }}.s3-website-eu-north-1.amazonaws.com"
+        echo "Backend API: http://${{ secrets.EC2_HOST }}:5001/api"
