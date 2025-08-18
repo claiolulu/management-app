@@ -62,11 +62,30 @@ jobs:
         script: |
           echo "Starting RDS deployment..."
           
+          # Install MySQL client if not available
+          which mysql || { echo "Installing MySQL client..."; sudo apt update && sudo apt install -y mysql-client; }
+          
           sudo systemctl stop figma-app || true
           
           # Test RDS connectivity
           echo "Testing RDS connection..."
           timeout 10 bash -c "</dev/tcp/${{ secrets.RDS_ENDPOINT }}/3306" && echo "RDS connection successful" || { echo "RDS connection failed"; exit 1; }
+          
+          # Create database if it doesn't exist
+          echo "Creating database if it doesn't exist..."
+          DB_NAME="${{ secrets.RDS_DATABASE }}"
+          if [ -z "$DB_NAME" ]; then
+            echo "RDS_DATABASE secret is empty! Using default: figma_app"
+            DB_NAME="figma_app"
+          fi
+          echo "Database name: $DB_NAME"
+          echo "RDS Endpoint: ${{ secrets.RDS_ENDPOINT }}"
+          echo "Username: ${{ secrets.RDS_USERNAME }}"
+          mysql -h ${{ secrets.RDS_ENDPOINT }} -P 3306 -u ${{ secrets.RDS_USERNAME }} -p${{ secrets.RDS_PASSWORD }} -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\`;" || echo "Database creation failed - it may already exist"
+          
+          # Verify database exists
+          echo "Verifying database exists..."
+          mysql -h ${{ secrets.RDS_ENDPOINT }} -P 3306 -u ${{ secrets.RDS_USERNAME }} -p${{ secrets.RDS_PASSWORD }} -e "SHOW DATABASES;" | grep -i $DB_NAME && echo "Database verified" || { echo "Database not found after creation"; exit 1; }
           
           if [ -d "/opt/figma-web-app/.git" ]; then
             cd /opt/figma-web-app
@@ -144,7 +163,7 @@ jobs:
           
           # Test RDS connection using MySQL client if available
           echo "Testing direct MySQL connection..."
-          mysql -h ${{ secrets.RDS_ENDPOINT }} -P 3306 -u ${{ secrets.RDS_USERNAME }} -p${{ secrets.RDS_PASSWORD }} -e "SELECT 1;" ${{ secrets.RDS_DATABASE }} && echo "MySQL connection successful" || echo "MySQL connection failed"
+          mysql -h ${{ secrets.RDS_ENDPOINT }} -P 3306 -u ${{ secrets.RDS_USERNAME }} -p${{ secrets.RDS_PASSWORD }} -e "SELECT 1;" $DB_NAME && echo "MySQL connection successful" || echo "MySQL connection failed"
           
           # Try simple connection test with Java
           echo "Testing database connection with production config..."
@@ -164,7 +183,7 @@ jobs:
           echo "Environment=DB_PASSWORD=${{ secrets.RDS_PASSWORD }}" | sudo tee -a /etc/systemd/system/figma-app.service
           echo "Environment=JWT_SECRET=${{ secrets.JWT_SECRET }}" | sudo tee -a /etc/systemd/system/figma-app.service
           echo 'Environment=ADMIN_PASSWORD=admin123' | sudo tee -a /etc/systemd/system/figma-app.service
-          echo "Environment=SPRING_DATASOURCE_URL=jdbc:mysql://${{ secrets.RDS_ENDPOINT }}:3306/${{ secrets.RDS_DATABASE }}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" | sudo tee -a /etc/systemd/system/figma-app.service
+          echo "Environment=SPRING_DATASOURCE_URL=jdbc:mysql://${{ secrets.RDS_ENDPOINT }}:3306/$DB_NAME?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" | sudo tee -a /etc/systemd/system/figma-app.service
           echo "Environment=SPRING_DATASOURCE_USERNAME=${{ secrets.RDS_USERNAME }}" | sudo tee -a /etc/systemd/system/figma-app.service
           echo "Environment=SPRING_DATASOURCE_PASSWORD=${{ secrets.RDS_PASSWORD }}" | sudo tee -a /etc/systemd/system/figma-app.service
           echo 'ExecStart=/usr/bin/java -jar -Dspring.profiles.active=production /opt/figma-web-app/backend/target/figma-web-app-backend-1.0.0.jar' | sudo tee -a /etc/systemd/system/figma-app.service
