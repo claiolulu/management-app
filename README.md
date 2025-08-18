@@ -1,80 +1,225 @@
 # Figma Web App
 
-A modern web application built with React frontend and Spring Boot backend, providing a comprehensive platform for design collaboration and project management.
+A modern, environment-aware web application built with React frontend and Spring Boot backend, providing a comprehensive platform for design collaboration and project management with proper environment-based configuration management.
 
-## Project Structure
+## 🌟 Key Features
+
+- **Environment-Based Configuration**: Separate profiles for development and production
+- **Comprehensive Security**: JWT authentication with environment-specific settings
+- **Auto-Deployment**: GitHub Actions CI/CD with environment variable injection
+- **Modern Stack**: React 18 + Spring Boot 3 with production-ready configuration
+- **Scalable Infrastructure**: AWS deployment with S3, EC2, and RDS
+
+## 📁 Project Structure
 
 ```
 figma-web-app/
-├── frontend/          # React frontend application
-│   ├── src/          # React source code
-│   ├── public/       # Static assets
-│   ├── package.json  # Frontend dependencies
-│   └── README.md     # Frontend documentation
-├── backend/          # Spring Boot backend application
-│   ├── src/          # Java source code
-│   ├── pom.xml       # Maven dependencies
-│   └── README.md     # Backend documentation
-└── README.md         # This file
+├── frontend/                 # React frontend application (Vite)
+│   ├── src/                 # React source code
+│   ├── .env.example         # Environment variables template
+│   ├── .env.development     # Development environment settings
+│   ├── setup-dev.sh         # Development setup script
+│   └── package.json         # Frontend dependencies
+├── backend/                 # Spring Boot backend application
+│   ├── src/main/resources/  # Configuration files
+│   │   ├── application.yml  # Base configuration with env vars
+│   │   ├── application-dev.yml   # Development profile
+│   │   └── application-prod.yml  # Production profile
+│   ├── .env.example         # Backend environment template
+│   ├── .env.development     # Development environment defaults
+│   ├── setup-dev.sh         # Development setup script
+│   └── pom.xml             # Maven dependencies
+├── .github/workflows/       # CI/CD configuration
+│   └── deploy.yml          # Environment-based deployment pipeline
+├── ENVIRONMENT_CONFIGURATION.md  # Comprehensive config guide
+└── README.md               # This file
 ```
 
-## Technology Stack
+## 🛠 Technology Stack
 
 ### Frontend
-- **React 18** - Modern React with hooks and functional components
+- **React 18** - Modern React with hooks and concurrent features
+- **Vite** - Next-generation frontend build tool
 - **React Router DOM** - Client-side routing
-- **Axios** - HTTP client for API calls
-- **Create React App** - Build tooling and development server
+- **Axios** - HTTP client with interceptors
+- **Environment Variables** - Vite env system with VITE_ prefix
 
 ### Backend
-- **Spring Boot 3.2.1** - Enterprise Java framework
-- **Spring Security** - Authentication and authorization with JWT
+- **Spring Boot 3.2.1** - Enterprise Java framework with native compilation
+- **Spring Security** - JWT-based authentication with environment profiles
+- **Spring Data JPA** - Database abstraction with Hibernate
 - **Spring Data JPA** - Database ORM with Hibernate
 - **MySQL 8.0** - Relational database
 - **Maven** - Build tool and dependency management
 
-## Quick Start
+## 🚀 Quick Start
 
 ### Prerequisites
-- **Node.js 16+** and **npm** (for frontend)
-- **Java 17+** and **Maven 3.6+** (for backend)
+- **Java 17+** (for backend)
+- **Node.js 18+** (for frontend) 
 - **MySQL 8.0+** (for database)
+- **Git** (for version control)
 
-### 1. Database Setup
+### Local Development Setup
+
+#### 1. Clone the Repository
 ```bash
-# Create MySQL database
-mysql -u root -p
-CREATE DATABASE figma_app;
+git clone https://github.com/claiolulu/management-app.git
+cd figma-web-app
 ```
 
-### 2. Backend Setup
+#### 2. Backend Setup (Automated)
 ```bash
-# Navigate to backend directory
+cd backend
+./setup-dev.sh  # Automated setup script
+```
+
+**Manual Backend Setup:**
+```bash
 cd backend
 
-# Build and run the Spring Boot application
-./mvnw spring-boot:run
+# Create environment file
+cp .env.development .env
+# Edit .env with your MySQL password and other settings
 
-# Or build JAR and run
-./mvnw clean package
-java -jar target/figma-web-app-backend-1.0.0.jar
+# Install dependencies and build
+chmod +x mvnw
+./mvnw clean compile
+
+# Create development database
+mysql -u root -p -e "CREATE DATABASE figma_app_dev;"
+
+# Run with development profile
+./mvnw spring-boot:run -Dspring.profiles.active=dev
 ```
 
-The backend will start on **http://localhost:5001/api**
-
-### 3. Frontend Setup
+#### 3. Frontend Setup (Automated)
 ```bash
-# Navigate to frontend directory
+cd frontend
+./setup-dev.sh  # Automated setup script
+```
+
+**Manual Frontend Setup:**
+```bash
 cd frontend
 
 # Install dependencies
 npm install
 
+# Create environment file (optional - has good defaults)
+cp .env.example .env.local
+
 # Start development server
-npm start
+npm run dev
 ```
 
-The frontend will start on **http://localhost:3000**
+### 🌐 Access Your Application
+- **Frontend**: http://localhost:5173
+- **Backend API**: http://localhost:5001/api
+- **API Health Check**: http://localhost:5001/api/actuator/health
+- **API Documentation**: http://localhost:5001/api/swagger-ui.html (if enabled)
+
+## 🌍 Environment Configuration
+
+This application uses a sophisticated environment-based configuration system:
+
+### Development Environment
+- **Profile**: `dev`
+- **Database**: Local MySQL (`figma_app_dev`)
+- **Logging**: Verbose (DEBUG level)
+- **Security**: Relaxed settings for development
+- **CORS**: All localhost origins allowed
+
+### Production Environment  
+- **Profile**: `prod`
+- **Database**: AWS RDS MySQL with SSL
+- **Logging**: Minimal (INFO/WARN levels)
+- **Security**: Production-hardened settings
+- **CORS**: Restricted to specific domains
+
+### Key Configuration Files
+- **Backend**: `application.yml`, `application-dev.yml`, `application-prod.yml`
+- **Frontend**: `.env.development`, `.env.production`
+- **Templates**: `.env.example` files with all available variables
+
+📖 **For complete configuration details, see [ENVIRONMENT_CONFIGURATION.md](ENVIRONMENT_CONFIGURATION.md)**
+
+## 🚀 Production Deployment
+
+### Automated Deployment (GitHub Actions)
+1. **Push to main branch** - Triggers automatic deployment
+2. **GitHub Secrets** - Stores sensitive configuration
+3. **Environment Injection** - Variables injected during build
+4. **Multi-Stage Deploy** - Frontend (S3) + Backend (EC2) + Database (RDS)
+
+### Required GitHub Secrets
+```bash
+# AWS Infrastructure
+AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION
+EC2_HOST, EC2_USER, EC2_SSH_KEY, S3_BUCKET_NAME
+
+# Database  
+RDS_ENDPOINT, RDS_USERNAME, RDS_PASSWORD, RDS_DATABASE
+
+# Security
+JWT_SECRET, ADMIN_USERNAME, ADMIN_PASSWORD
+
+# Email (Optional)
+MAIL_HOST, MAIL_USERNAME, MAIL_PASSWORD
+```
+
+### Manual Deployment
+```bash
+# Trigger manual deployment
+# Go to: GitHub Actions → Deploy to AWS → Run workflow
+```
+
+## 🏗 Infrastructure
+
+### AWS Architecture
+```
+┌─────────────┐    ┌──────────────┐    ┌─────────────┐
+│   Internet  │───▶│  CloudFront  │───▶│     S3      │
+│   Users     │    │   (Optional) │    │  (Frontend) │
+└─────────────┘    └──────────────┘    └─────────────┘
+                            │
+                            ▼
+                   ┌──────────────┐    ┌─────────────┐
+                   │     EC2      │───▶│     RDS     │
+                   │ (Backend +   │    │   MySQL     │
+                   │   Nginx)     │    │ (Database)  │
+                   └──────────────┘    └─────────────┘
+```
+
+### Technology Stack
+- **Frontend**: React + Vite → S3 Static Hosting + EC2/Nginx
+- **Backend**: Spring Boot → EC2 with systemd service
+- **Database**: MySQL → RDS with automated backups
+- **Reverse Proxy**: Nginx with SSL termination
+- **CI/CD**: GitHub Actions with environment-based deployment
+
+## 📊 Monitoring & Health Checks
+
+### Application Health
+```bash
+# Backend health
+curl https://your-domain.com/api/actuator/health
+
+# Frontend availability  
+curl https://your-domain.com/
+
+# Database connectivity
+curl https://your-domain.com/api/actuator/health/db
+```
+
+### Log Monitoring
+```bash
+# Development logs
+tail -f backend/logs/figma-app-dev.log
+
+# Production logs (on EC2)
+tail -f /var/log/figma-app/application.log
+```
 
 ## API Endpoints
 

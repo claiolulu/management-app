@@ -1,13 +1,13 @@
 package com.figma.webapp.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.MailException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @Service
 public class EmailService {
@@ -17,11 +17,14 @@ public class EmailService {
     @Autowired
     private JavaMailSender mailSender;
     
-    @Value("${spring.mail.username:liuprope@gmail.com}")
+    @Value("${spring.mail.username:}")
     private String fromEmail;
     
-    @Value("${app.frontend.url:http://localhost:3000}")
+    @Value("${app.frontend.url}")
     private String frontendUrl;
+    
+    @Value("${app.email.reset-token-expiry-minutes:30}")
+    private int resetTokenExpiryMinutes;
     
     public void sendPasswordResetEmail(String toEmail, String username, String resetToken) {
         try {
@@ -37,11 +40,11 @@ public class EmailService {
                 "You have requested to reset your password for your Figma Web App account.\n\n" +
                 "Please click the link below to reset your password:\n" +
                 "%s\n\n" +
-                "This link will expire in 30 minutes for security reasons.\n\n" +
+                "This link will expire in %d minutes for security reasons.\n\n" +
                 "If you did not request this password reset, please ignore this email and your password will remain unchanged.\n\n" +
                 "Best regards,\n" +
                 "Figma Web App Team",
-                username, resetUrl
+                username, resetUrl, resetTokenExpiryMinutes
             );
             
             message.setText(emailBody);

@@ -17,7 +17,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/activities")
-@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:3001"})
 public class ActivityController {
 
     @Autowired

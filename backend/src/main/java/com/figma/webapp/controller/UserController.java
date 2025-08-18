@@ -20,7 +20,6 @@ import com.figma.webapp.service.UserService;
 
 @RestController
 @RequestMapping("/users")
-@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:3001", "http://localhost:5173", "http://localhost:5174"})
 public class UserController {
 
     @Autowired

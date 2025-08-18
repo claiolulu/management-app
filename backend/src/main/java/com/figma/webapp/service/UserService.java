@@ -7,6 +7,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -30,6 +31,9 @@ public class UserService implements UserDetailsService {
 
     @Autowired
     private PasswordResetTokenRepository passwordResetTokenRepository;
+    
+    @Value("${app.email.reset-token-expiry-minutes:30}")
+    private int resetTokenExpiryMinutes;
 
     @Autowired
     private EmailService emailService;
@@ -170,7 +174,7 @@ public class UserService implements UserDetailsService {
 
         // Generate new token
         String token = UUID.randomUUID().toString();
-        LocalDateTime expiryDate = LocalDateTime.now().plusMinutes(30); // 30 minutes expiry
+        LocalDateTime expiryDate = LocalDateTime.now().plusMinutes(resetTokenExpiryMinutes);
 
         PasswordResetToken resetToken = new PasswordResetToken(token, user, expiryDate);
         passwordResetTokenRepository.save(resetToken);

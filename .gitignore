@@ -8,6 +8,14 @@ backend/logs/
 backend/*.log
 frontend/*.log
 
+# Temporary scripts and diagnostic files
+fix-*.js
+fix-*.sh
+remove-*.js
+*diagnostic*.sh
+test-*.md
+DEBUG_*.md
+
 # Java specific
 target/
 !.mvn/wrapper/maven-wrapper.jar
@@ -30,6 +38,9 @@ frontend/build/
 .env.development.local
 .env.test.local
 .env.production.local
+
+# But track example files
+!.env.example
 
 # IDE specific files
 .vscode/

@@ -19,7 +19,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("")
-@CrossOrigin(origins = "http://localhost:5173")
 public class FileController {
 
     @Value("${app.upload.path:uploads/profiles}")

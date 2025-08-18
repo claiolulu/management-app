@@ -1,118 +1,115 @@
 server:
-  port: 5001
+  port: ${SERVER_PORT:5001}
   servlet:
-    context-path: /api
+    context-path: ${SERVER_CONTEXT_PATH:/api}
 
 spring:
   main:
     allow-circular-references: true
   application:
-    name: figma-web-app-backend
+    name: ${APP_NAME:figma-web-app-backend}
   
   datasource:
-    url: jdbc:mysql://localhost:3306/figma_app?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-    username: root
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:figma_app}?createDatabaseIfNotExist=true&useSSL=${DB_USE_SSL:false}&allowPublicKeyRetrieval=true&serverTimezone=${DB_TIMEZONE:UTC}
+    username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
     
   jpa:
     hibernate:
-      ddl-auto: update
-    show-sql: false
+      ddl-auto: ${JPA_DDL_AUTO:update}
+    show-sql: ${JPA_SHOW_SQL:false}
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
-        format_sql: true
+        format_sql: ${JPA_FORMAT_SQL:true}
     defer-datasource-initialization: true
     
   sql:
     init:
-      mode: never
+      mode: ${SQL_INIT_MODE:never}
       continue-on-error: true
 
   servlet:
     multipart:
-      max-file-size: 10MB
-      max-request-size: 10MB
+      max-file-size: ${MULTIPART_MAX_FILE_SIZE:10MB}
+      max-request-size: ${MULTIPART_MAX_REQUEST_SIZE:10MB}
       
   security:
     user:
-      name: admin
+      name: ${ADMIN_USERNAME:admin}
       password: ${ADMIN_PASSWORD}
   
-  # Email Configuration - AWS SES SMTP
+  # Email Configuration
   mail:
-    host: smtp.gmail.com
-    port: 587
-    username: liuprope@gmail.com
-    password: svlhrmvrgbirwegl
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
-          auth: true
+          auth: ${MAIL_SMTP_AUTH:true}
           starttls:
-            enable: true
+            enable: ${MAIL_SMTP_STARTTLS:true}
           ssl:
-            trust: smtp.gmail.com
+            trust: ${MAIL_HOST:smtp.gmail.com}
 
 # JWT Configuration
 jwt:
   secret: ${JWT_SECRET}
-  expiration: 86400000 # 24 hours in milliseconds
+  expiration: ${JWT_EXPIRATION_MS:86400000} # 24 hours in milliseconds
 
 # CORS Configuration
 cors:
   allowed-origins: 
-    - http://localhost:3000
-    - http://localhost:3001
-    - http://localhost:5173
-    - http://13.61.195.234
-    - https://13.61.195.234
-    - http://gcgcm-fe.s3-website-eu-north-1.amazonaws.com
-    - https://gcgcm-fe.s3-website-eu-north-1.amazonaws.com
-    - https://gcgcm-fe.s3.eu-north-1.amazonaws.com
+    - ${CORS_ORIGIN_LOCALHOST_3000:http://localhost:3000}
+    - ${CORS_ORIGIN_LOCALHOST_3001:http://localhost:3001}
+    - ${CORS_ORIGIN_LOCALHOST_5173:http://localhost:5173}
+    - ${CORS_ORIGIN_EC2_HTTP:}
+    - ${CORS_ORIGIN_EC2_HTTPS:}
+    - ${CORS_ORIGIN_PROD:https://gcgcm-fe.s3.eu-north-1.amazonaws.com}
   allowed-methods:
     - GET
     - POST
     - PUT
     - DELETE
     - OPTIONS
-    - PUT
-    - DELETE
-    - OPTIONS
   allowed-headers: "*"
-  allow-credentials: true
+  allow-credentials: ${CORS_ALLOW_CREDENTIALS:true}
 
 # Logging Configuration
 logging:
   level:
-    com.figma.webapp: DEBUG
-    org.springframework.security: DEBUG
-    org.springframework.web: DEBUG
+    "[com.figma.webapp]": ${LOG_LEVEL_APP:DEBUG}
+    "[org.springframework.security]": ${LOG_LEVEL_SECURITY:DEBUG}
+    "[org.springframework.web]": ${LOG_LEVEL_WEB:DEBUG}
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
-    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    console: "${LOG_PATTERN_CONSOLE:%d{yyyy-MM-dd HH:mm:ss} - %msg%n}"
+    file: "${LOG_PATTERN_FILE:%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n}"
   file:
-    name: logs/figma-app.log
+    name: ${LOG_FILE:logs/figma-app.log}
 
 # Management endpoints
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: ${MANAGEMENT_ENDPOINTS:health,info,metrics}
   endpoint:
     health:
-      show-details: always
+      show-details: ${MANAGEMENT_HEALTH_DETAILS:always}
 
 # File upload directory
 file:
   upload:
-    dir: uploads/profiles/
+    dir: ${FILE_UPLOAD_DIR:uploads/profiles/}
 
 # App Configuration
 app:
   frontend:
-    url: ${FRONTEND_URL:http://localhost:5173}
+    url: ${FRONTEND_URL:https://gcgcm-fe.s3.eu-north-1.amazonaws.com}
   upload:
     path: ${UPLOAD_PATH:uploads/profiles}
+  email:
+    reset-token-expiry-minutes: ${EMAIL_RESET_TOKEN_EXPIRY:30}
