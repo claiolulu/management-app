@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import '../styles/RoleManagement.css';
+import config from '../config/api';
 
 const RoleManagement = ({ onClose, currentUser }) => {
   const [users, setUsers] = useState([]);
@@ -29,7 +30,7 @@ const RoleManagement = ({ onClose, currentUser }) => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5001/api/users/all', {
+      const response = await fetch('${config.API_BASE_URL}/users/all', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -69,7 +70,7 @@ const RoleManagement = ({ onClose, currentUser }) => {
     setSaving(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5001/api/users/${selectedUser.id}/role`, {
+      const response = await fetch(`${config.API_BASE_URL}/users/${selectedUser.id}/role`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,

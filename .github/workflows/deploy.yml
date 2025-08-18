@@ -1,0 +1,184 @@
+name: Deploy to S3 and EC2
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+    
+    - name: Setup Java
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: eu-north-1
+    
+    - name: Build Frontend
+      run: |
+        cd frontend
+        npm ci
+        echo "VITE_API_URL=http://${{ secrets.EC2_HOST }}:5001/api" > .env.production
+        npm run build
+    
+    - name: Deploy Frontend to S3
+      run: |
+        cd frontend
+        aws s3 sync dist/ s3://${{ secrets.S3_BUCKET_NAME }}/ --delete
+    
+    - name: Build Backend
+      run: |
+        cd backend
+        chmod +x mvnw
+        ./mvnw clean package -DskipTests
+    
+    - name: Deploy Backend to EC2
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USER }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        port: 22
+        script: |
+          echo "Starting deployment with RDS database..."
+          
+          sudo systemctl stop figma-app || true
+          
+          # Test RDS connectivity
+          echo "Testing RDS connection..."
+          timeout 10 bash -c "</dev/tcp/${{ secrets.RDS_ENDPOINT }}/3306" && echo "RDS connection successful" || { echo "RDS connection failed"; exit 1; }
+          
+          if [ -d "/opt/figma-web-app/.git" ]; then
+            cd /opt/figma-web-app
+            sudo git fetch origin
+            sudo git reset --hard origin/main
+            sudo git clean -fd
+          else
+            sudo rm -rf /opt/figma-web-app
+            sudo git clone https://github.com/${{ github.repository }}.git /opt/figma-web-app
+            sudo chown -R ubuntu:ubuntu /opt/figma-web-app
+          fi
+          
+          cd /opt/figma-web-app/backend
+          sudo chmod +x mvnw
+          sudo ./mvnw clean package -DskipTests
+          
+          if [ ! -f "target/figma-web-app-backend-1.0.0.jar" ]; then
+            echo "JAR file not found!"
+            sudo ls -la target/
+            exit 1
+          fi
+          
+          # Create RDS database configuration
+          sudo mkdir -p /opt/figma-web-app/backend/config
+          cat > /tmp/app-config.yml << 'CONFIGEOF'
+          spring:
+            datasource:
+              url: jdbc:mysql://RDS_ENDPOINT_PLACEHOLDER:3306/RDS_DATABASE_PLACEHOLDER?useSSL=false&allowPublicKeyRetrieval=true
+              username: RDS_USERNAME_PLACEHOLDER
+              password: RDS_PASSWORD_PLACEHOLDER
+              driver-class-name: com.mysql.cj.jdbc.Driver
+            jpa:
+              hibernate:
+                ddl-auto: update
+              show-sql: false
+              properties:
+                hibernate:
+                  dialect: org.hibernate.dialect.MySQLDialect
+            web:
+              cors:
+                allowed-origins: "https://S3_BUCKET_PLACEHOLDER.s3-website.eu-north-1.amazonaws.com"
+                allowed-methods: "GET,POST,PUT,DELETE,OPTIONS"
+                allowed-headers: "*"
+                allow-credentials: true
+          server:
+            port: 5001
+          jwt:
+            secret: JWT_SECRET_PLACEHOLDER
+          logging:
+            level:
+              com.figma: INFO
+              root: WARN
+            file:
+              name: /var/log/figma-app/figma-app.log
+              max-size: 10MB
+              max-history: 5
+          CONFIGEOF
+          
+          # Replace placeholders with actual values
+          sed -i "s|RDS_ENDPOINT_PLACEHOLDER|${{ secrets.RDS_ENDPOINT }}|g" /tmp/app-config.yml
+          sed -i "s|RDS_DATABASE_PLACEHOLDER|${{ secrets.RDS_DATABASE }}|g" /tmp/app-config.yml
+          sed -i "s|RDS_USERNAME_PLACEHOLDER|${{ secrets.RDS_USERNAME }}|g" /tmp/app-config.yml
+          sed -i "s|RDS_PASSWORD_PLACEHOLDER|${{ secrets.RDS_PASSWORD }}|g" /tmp/app-config.yml
+          sed -i "s|S3_BUCKET_PLACEHOLDER|${{ secrets.S3_BUCKET_NAME }}|g" /tmp/app-config.yml
+          sed -i "s|JWT_SECRET_PLACEHOLDER|${{ secrets.JWT_SECRET }}|g" /tmp/app-config.yml
+          
+          sudo mv /tmp/app-config.yml /opt/figma-web-app/backend/config/application-production.yml
+          
+          # Create log directory
+          sudo mkdir -p /var/log/figma-app
+          sudo chown -R ubuntu:ubuntu /var/log/figma-app
+          
+          # Create systemd service
+          sudo tee /etc/systemd/system/figma-app.service > /dev/null << 'SERVICEEOF'
+          [Unit]
+          Description=Figma Web App Backend
+          After=network.target
+          
+          [Service]
+          Type=simple
+          User=ubuntu
+          WorkingDirectory=/opt/figma-web-app/backend
+          ExecStart=/usr/bin/java -jar -Dspring.profiles.active=production -Dspring.config.location=file:config/application-production.yml /opt/figma-web-app/backend/target/figma-web-app-backend-1.0.0.jar
+          Restart=always
+          RestartSec=10
+          StandardOutput=journal
+          StandardError=journal
+          
+          [Install]
+          WantedBy=multi-user.target
+          SERVICEEOF
+          
+          sudo systemctl daemon-reload
+          sudo chown -R ubuntu:ubuntu /opt/figma-web-app
+          sudo chmod +x /opt/figma-web-app/backend/target/*.jar
+          sudo systemctl start figma-app
+          
+          sleep 15
+          
+          if sudo systemctl is-active --quiet figma-app; then
+            echo "Backend service is running successfully"
+            echo "Testing API endpoint..."
+            curl -f http://localhost:5001/api/auth/health && echo "API health check passed" || echo "API health check failed"
+          else
+            echo "Backend service failed to start"
+            sudo systemctl status figma-app
+            sudo journalctl -u figma-app -n 20
+            exit 1
+          fi
+          
+          echo "Deployment completed!"
+    
+    - name: Show URLs
+      run: |
+        echo "Frontend: https://${{ secrets.S3_BUCKET_NAME }}.s3-website-eu-north-1.amazonaws.com"
+        echo "Backend API: http://${{ secrets.EC2_HOST }}:5001/api"

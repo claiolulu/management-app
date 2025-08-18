@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import '../styles/ResetPasswordPage.css';
+import config from '../config/api';
 
 function ResetPasswordPage({ onBackToLogin }) {
   // Get token from URL
@@ -31,7 +32,7 @@ function ResetPasswordPage({ onBackToLogin }) {
 
   const validateToken = async () => {
     try {
-      const response = await fetch(`http://localhost:5001/api/validate-reset-token/${token}`);
+      const response = await fetch(`${config.API_BASE_URL}/validate-reset-token/${token}`);
       const data = await response.json();
       
       if (data.valid) {
@@ -75,7 +76,7 @@ function ResetPasswordPage({ onBackToLogin }) {
     setMessage('');
 
     try {
-      const response = await fetch('http://localhost:5001/api/reset-password', {
+      const response = await fetch('${config.API_BASE_URL}/reset-password', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

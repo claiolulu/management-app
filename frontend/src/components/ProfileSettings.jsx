@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import '../styles/ProfileSettings.css';
-import config from '../config/api.js';
+import config from '../config/api';
 
 const ProfileSettings = ({ user, onClose, onUpdateProfile }) => {
   const [profileData, setProfileData] = useState({
@@ -95,7 +95,7 @@ const ProfileSettings = ({ user, onClose, onUpdateProfile }) => {
       formData.append('avatar', profileData.profilePictureFile);
     } else if (profileData.removePicture) {
       formData.append('removeProfilePicture', 'true');
-    }      const response = await fetch('http://localhost:5001/api/profile', {
+    }      const response = await fetch('${config.API_BASE_URL}/profile', {
         method: 'PUT',
         body: formData,
         headers: {
@@ -144,7 +144,7 @@ const ProfileSettings = ({ user, onClose, onUpdateProfile }) => {
                   <img 
                     src={previewImage.startsWith('data:') || previewImage.startsWith('http') 
                       ? previewImage 
-                      : `http://localhost:5001/api/files/profiles/${previewImage.split('/').pop()}`} 
+                      : `${config.FILES_BASE_URL}/profiles/${previewImage.split('/').pop()}`} 
                     alt="Profile" 
                     className="profile-picture-preview"
                   />

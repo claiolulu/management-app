@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ConfirmDialog from './ConfirmDialog';
 import '../styles/TaskDetail.css';
+import config from '../config/api';
 
 const TaskDetail = ({ taskId, onBack, user }) => {
   const [task, setTask] = useState(null);
@@ -34,7 +35,7 @@ const TaskDetail = ({ taskId, onBack, user }) => {
   const fetchTaskDetail = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5001/api/tasks/${taskId}`, {
+      const response = await fetch(`${config.API_BASE_URL}/tasks/${taskId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -64,7 +65,7 @@ const TaskDetail = ({ taskId, onBack, user }) => {
   const fetchStaffUsers = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5001/api/tasks/staff', {
+      const response = await fetch('${config.API_BASE_URL}/tasks/staff', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -100,7 +101,7 @@ const TaskDetail = ({ taskId, onBack, user }) => {
     setSaving(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5001/api/tasks/${taskId}`, {
+      const response = await fetch(`${config.API_BASE_URL}/tasks/${taskId}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -129,7 +130,7 @@ const TaskDetail = ({ taskId, onBack, user }) => {
     setDeleting(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5001/api/tasks/${taskId}`, {
+      const response = await fetch(`${config.API_BASE_URL}/tasks/${taskId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,

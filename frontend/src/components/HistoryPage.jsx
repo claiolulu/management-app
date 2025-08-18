@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import '../styles/HistoryPage.css';
+import config from '../config/api';
 
 const HistoryPage = ({ onBack, user, onNavigateToTask }) => {
   const [tasks, setTasks] = useState([]);
@@ -22,7 +23,7 @@ const HistoryPage = ({ onBack, user, onNavigateToTask }) => {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(
-        `http://localhost:5001/api/tasks/history?page=${pageToLoad}&size=${pageSize}`,
+        `${config.API_BASE_URL}/tasks/history?page=${pageToLoad}&size=${pageSize}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,

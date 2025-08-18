@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import ProfileSettings from './ProfileSettings';
 import RoleManagement from './RoleManagement';
 import ConfirmDialog from './ConfirmDialog';
+import config from '../config/api';
 import '../styles/Homepage.css';
 
 const toLocalDateOnly = (d) => {
@@ -79,7 +80,7 @@ const Homepage = ({ user, onLogout, onOpenAssignTask, onNavigateToTask, onNaviga
       console.log('Token preview:', token ? token.substring(0, 50) + '...' : 'NO TOKEN');
       
       // Use /user-tasks to get all upcoming tasks, not just today's tasks
-      const url = `http://localhost:5001/api/tasks/user-tasks?page=${pageToLoad}&size=${pageSize}`;
+      const url = `${config.API_BASE_URL}/tasks/user-tasks?page=${pageToLoad}&size=${pageSize}`;
       console.log('Fetching user tasks from:', url);
       
       const res = await fetch(url, {
@@ -117,7 +118,7 @@ const Homepage = ({ user, onLogout, onOpenAssignTask, onNavigateToTask, onNaviga
     try {
       const token = localStorage.getItem('token');
       const today = toLocalDateOnly(new Date());
-      const url = `http://localhost:5001/api/tasks/others-incoming?date=${today}&page=${pageToLoad}&size=${pageSize}`;
+      const url = `${config.API_BASE_URL}/tasks/others-incoming?date=${today}&page=${pageToLoad}&size=${pageSize}`;
       console.log('Fetching other tasks from:', url);
       const res = await fetch(url, {
         headers: {
@@ -149,7 +150,7 @@ const Homepage = ({ user, onLogout, onOpenAssignTask, onNavigateToTask, onNaviga
       const token = localStorage.getItem('token');
       const startDate = toLocalDateOnly(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
       const endDate = toLocalDateOnly(new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0));
-      const response = await fetch(`http://localhost:5001/api/tasks/calendar?startDate=${startDate}&endDate=${endDate}`, {
+      const response = await fetch(`${config.API_BASE_URL}/tasks/calendar?startDate=${startDate}&endDate=${endDate}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -274,7 +275,7 @@ const Homepage = ({ user, onLogout, onOpenAssignTask, onNavigateToTask, onNaviga
     setModalLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`http://localhost:5001/api/tasks/by-date?date=${isoDate}`, {
+      const res = await fetch(`${config.API_BASE_URL}/tasks/by-date?date=${isoDate}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -371,7 +372,7 @@ const Homepage = ({ user, onLogout, onOpenAssignTask, onNavigateToTask, onNaviga
     setDeleting(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5001/api/tasks/${taskToDelete}`, {
+      const response = await fetch(`${config.API_BASE_URL}/tasks/${taskToDelete}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -489,7 +490,7 @@ const Homepage = ({ user, onLogout, onOpenAssignTask, onNavigateToTask, onNaviga
                   <img 
                     src={(currentUser.profilePicture || currentUser.avatar).startsWith('data:') || (currentUser.profilePicture || currentUser.avatar).startsWith('http') 
                       ? (currentUser.profilePicture || currentUser.avatar)
-                      : `http://localhost:5001/api/files/profiles/${(currentUser.profilePicture || currentUser.avatar).split('/').pop()}`} 
+                      : `${config.FILES_BASE_URL}/profiles/${(currentUser.profilePicture || currentUser.avatar).split('/').pop()}`} 
                     alt="Profile" 
                     className="profile-avatar-image"
                   />

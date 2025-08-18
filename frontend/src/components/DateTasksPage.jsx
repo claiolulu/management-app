@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import '../styles/DateTasksPage.css';
+import config from '../config/api';
 
 const DateTasksPage = ({ selectedDate, onBack, user, onNavigateToTask, onNavigateToDate }) => {
   const [userTasks, setUserTasks] = useState([]);
@@ -26,7 +27,7 @@ const DateTasksPage = ({ selectedDate, onBack, user, onNavigateToTask, onNavigat
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(
-        `http://localhost:5001/api/tasks/by-date-detailed?date=${selectedDate}&userTasksPage=${userPage}&otherTasksPage=${otherPage}&size=${pageSize}`,
+        `${config.API_BASE_URL}/tasks/by-date-detailed?date=${selectedDate}&userTasksPage=${userPage}&otherTasksPage=${otherPage}&size=${pageSize}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,

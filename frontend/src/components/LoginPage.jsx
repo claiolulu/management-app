@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import '../styles/LoginPage.css';
+import config from '../config/api';
 
 const LoginPage = ({ onLoginSuccess }) => {
   const [email, setEmail] = useState('');
@@ -29,7 +30,7 @@ const LoginPage = ({ onLoginSuccess }) => {
     setMessage('');
 
     try {
-      const response = await fetch('http://localhost:5001/api/login', {
+      const response = await fetch(`${config.API_BASE_URL}/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -104,7 +105,7 @@ const LoginPage = ({ onLoginSuccess }) => {
     }
 
     try {
-      const response = await fetch('http://localhost:5001/api/register', {
+      const response = await fetch(`${config.API_BASE_URL}/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -164,7 +165,7 @@ const LoginPage = ({ onLoginSuccess }) => {
     setMessage('');
 
     try {
-      const response = await fetch('http://localhost:5001/api/forgot-password', {
+      const response = await fetch(`${config.API_BASE_URL}/forgot-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
