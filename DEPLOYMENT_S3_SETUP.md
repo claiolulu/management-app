@@ -156,7 +156,51 @@ This guide will help you set up **cost-effective** automated deployment using S3
    - ✅ Only use these keys in GitHub Secrets
    - ❌ Don't share keys in chat/email
 
-### Step 4: Setup EC2 Backend (Simplified)
+### Step 4: Setup Amazon RDS MySQL Database
+
+#### 4.1: Create RDS Database
+
+1. **Go to AWS RDS Console** (eu-north-1 region):
+   - Click "Create database"
+   - Choose "Standard create"
+   - Engine: **MySQL** (latest version)
+
+2. **Configure Database**:
+   ```
+   DB Instance Class: db.t3.micro (Free tier eligible)
+   Multi-AZ: No (for cost saving)
+   Storage: 20 GB GP2 (Free tier)
+   Database name: gcgcm_mgt_db
+   Master username: admin
+   Master password: Your-Secure-Password
+   ```
+
+3. **Connectivity Settings**:
+   - VPC: Default VPC
+   - Subnet group: Default
+   - Public access: **Yes** (for initial setup)
+   - Security group: Create new → Name: `figma-db-sg`
+
+4. **Additional Configuration**:
+   - Initial database name: `gcgcm_mgt_db`
+   - Enable automated backups: Yes (7 days)
+   - Backup window: 03:00-04:00 UTC
+   - Maintenance window: Sun 04:00-05:00 UTC
+
+5. **Create Database** (takes 10-15 minutes)
+
+#### 4.2: Configure Security Group
+
+1. **Edit `figma-db-sg` Security Group**:
+   - Go to EC2 → Security Groups
+   - Find `figma-db-sg` 
+   - Add inbound rule:
+     - Type: MySQL/Aurora
+     - Protocol: TCP
+     - Port: 3306
+     - Source: Your EC2 security group ID
+
+#### 4.3: Setup EC2 Backend
 
 ```bash
 # SSH into your EC2 instance
@@ -164,11 +208,43 @@ ssh -i your-key.pem ubuntu@your-ec2-ip
 
 # Update system and install required software
 sudo apt update && sudo apt upgrade -y
-sudo apt install openjdk-17-jdk git -y
+sudo apt install openjdk-17-jdk git mysql-client -y
 
 # Create application directory
 sudo mkdir -p /opt/figma-web-app
 sudo chown ubuntu:ubuntu /opt/figma-web-app
+
+# Test RDS connection (replace with your RDS endpoint)
+mysql -h gcgcm-mgt-db.YOUR-RANDOM-ID.eu-north-1.rds.amazonaws.com -u admin -p
+
+# Create application.yml with RDS configuration
+sudo mkdir -p /opt/figma-web-app/backend/config
+sudo tee /opt/figma-web-app/backend/config/application-production.yml > /dev/null <<EOF
+spring:
+  datasource:
+    url: jdbc:mysql://gcgcm-mgt-db.YOUR-RANDOM-ID.eu-north-1.rds.amazonaws.com:3306/gcgcm_mgt_db?useSSL=true&requireSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: admin
+    password: Your-RDS-Master-Password
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        jdbc:
+          time_zone: UTC
+
+server:
+  port: 5001
+  
+logging:
+  level:
+    com.figma: INFO
+    org.hibernate.SQL: DEBUG
+EOF
 
 # Create systemd service file
 sudo tee /etc/systemd/system/figma-app.service > /dev/null <<EOF
@@ -179,8 +255,8 @@ After=network.target
 [Service]
 Type=simple
 User=ubuntu
-WorkingDirectory=/opt/figma-web-app
-ExecStart=/usr/bin/java -jar /opt/figma-web-app/backend/target/figma-web-app-0.0.1-SNAPSHOT.jar
+WorkingDirectory=/opt/figma-web-app/backend
+ExecStart=/usr/bin/java -jar -Dspring.profiles.active=production -Dspring.config.location=file:config/application-production.yml /opt/figma-web-app/backend/target/figma-web-app-backend-1.0.0.jar
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -245,6 +321,25 @@ EC2_SSH_KEY
 # Paste your entire .pem file content here
 # Make sure to include -----BEGIN RSA PRIVATE KEY----- and -----END RSA PRIVATE KEY-----
 ```
+
+**RDS Database Configuration:**
+```
+RDS_ENDPOINT
+gcgcm-mgt-db.YOUR-RANDOM-ID.eu-north-1.rds.amazonaws.com
+
+RDS_DATABASE
+gcgcm_mgt_db
+
+RDS_USERNAME
+admin
+
+RDS_PASSWORD
+Your-RDS-Master-Password
+```
+
+**⚠️ Important**: 
+- Replace `YOUR-RANDOM-ID` with your actual RDS endpoint from AWS Console
+- Use the exact master password you set when creating the RDS instance
 
 ### Step 6: Configure Frontend to Connect to EC2 Backend
 
@@ -372,8 +467,15 @@ export { API_BASE_URL };
 | S3 Requests (10K) | ~$0.004 |
 | CloudFront (optional) | $0.50 + data transfer |
 | EC2 t2.micro | **FREE** (750 hours/month) |
+| RDS db.t3.micro | **FREE** (750 hours/month) |
+| RDS Storage (20GB) | ~$2.30 |
 | Data Transfer | **FREE** (1GB/month) |
-| **Total** | **$0.50 - $2.00/month** |
+| **Total** | **$2.83/month** |
+
+**After Free Tier (12 months):**
+- EC2 t2.micro: ~$8.50/month
+- RDS db.t3.micro: ~$12.50/month  
+- **Total: ~$24/month**
 
 ---
 
@@ -426,18 +528,44 @@ Users → EC2 (Backend API) ← Frontend (API calls)
 
 ### Backend Issues:
 
-**4. EC2 Service Won't Start**
+**4. Backend Service Won't Start - RDS Connection**
+```bash
+# Check RDS connectivity from EC2
+mysql -h your-rds-endpoint.eu-north-1.rds.amazonaws.com -u admin -p
+
+# If connection fails, check:
+# 1. RDS Security Group allows EC2 access
+# 2. RDS is in same VPC as EC2 (or publicly accessible)
+# 3. RDS endpoint is correct
+
+# Test with telnet
+telnet your-rds-endpoint.eu-north-1.rds.amazonaws.com 3306
+```
+
+**5. Backend Service Won't Start - General**
 ```bash
 # SSH into EC2 and check logs
 sudo journalctl -u figma-app -f
 sudo systemctl status figma-app
+
+# Check application logs for database errors
+sudo journalctl -u figma-app --no-pager | grep -i "database\|mysql\|connection"
 ```
 
-**5. API Not Accessible**
+**6. API Not Accessible**
 ```bash
 # Check EC2 security group allows port 5001
 # Verify service is running on correct port
 curl http://localhost:5001/api/auth/health
+```
+
+**7. RDS Performance Issues**
+```bash
+# Monitor RDS in AWS Console:
+# - CPU utilization
+# - Database connections
+# - Read/Write latency
+# - Free storage space
 ```
 
 ---
