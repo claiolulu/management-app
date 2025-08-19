@@ -43,7 +43,7 @@ jobs:
         
         echo "⚙️ Creating production config..."
         cat > .env.production << EOF
-        VITE_API_URL=http://ec2-13-61-195-234.eu-north-1.compute.amazonaws.com:5001/api
+        VITE_API_URL=https://ec2-13-61-195-234.eu-north-1.compute.amazonaws.com/api
         VITE_ENVIRONMENT=production
         EOF
         
@@ -87,4 +87,4 @@ jobs:
       run: |
         echo "✅ Frontend deployed successfully!"
         echo "🌍 S3: https://gcgcm-fe.s3.eu-north-1.amazonaws.com"
-        echo "🔗 API: http://ec2-13-61-195-234.eu-north-1.compute.amazonaws.com:5001/api"
+        echo "🔗 API: https://ec2-13-61-195-234.eu-north-1.compute.amazonaws.com/api"
