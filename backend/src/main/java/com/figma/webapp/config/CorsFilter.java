@@ -17,6 +17,22 @@ import jakarta.servlet.http.HttpServletResponse;
 @Order(1)
 public class CorsFilter implements Filter {
 
+    /**
+     * Helper method to check if an origin is allowed.
+     * Uses centralized constants from CorsConstants to eliminate redundancy.
+     */
+    private boolean isOriginAllowed(String origin) {
+        if (origin == null) return false;
+        
+        // Check exact matches first using centralized constants
+        if (CorsConstants.ALLOWED_ORIGINS.contains(origin)) {
+            return true;
+        }
+        
+        // Check AWS pattern as fallback
+        return origin.matches(CorsConstants.AWS_PATTERN);
+    }
+
     @Override
     public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain filterChain)
             throws IOException, ServletException {
@@ -27,17 +43,11 @@ public class CorsFilter implements Filter {
         String origin = request.getHeader("Origin");
         String method = request.getMethod();
         
-        // Log for debugging
+        // Log for debugging (can be removed once stable)
         System.out.println("🔍 CORS Filter - Origin: " + origin + ", Method: " + method);
         
-        // Always set CORS headers for allowed origins
-        if (origin != null && (
-                origin.equals("https://gcgcm-fe.s3.eu-north-1.amazonaws.com") ||
-                origin.equals("https://gcgcm-fe.s3-website.eu-north-1.amazonaws.com") ||
-                origin.equals("http://localhost:3000") ||
-                origin.equals("http://localhost:5173") ||
-                origin.matches("https://.*\\.amazonaws\\.com")
-        )) {
+        // Set CORS headers for allowed origins
+        if (isOriginAllowed(origin)) {
             System.out.println("✅ CORS Filter - Origin allowed, setting headers");
             response.setHeader("Access-Control-Allow-Origin", origin);
             response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
@@ -49,18 +59,10 @@ public class CorsFilter implements Filter {
         }
 
         // Handle preflight requests
-        if ("OPTIONS".equalsIgnoreCase(method)) {
-            if (origin != null && (
-                    origin.equals("https://gcgcm-fe.s3.eu-north-1.amazonaws.com") ||
-                    origin.equals("https://gcgcm-fe.s3-website.eu-north-1.amazonaws.com") ||
-                    origin.equals("http://localhost:3000") ||
-                    origin.equals("http://localhost:5173") ||
-                    origin.matches("https://.*\\.amazonaws\\.com")
-            )) {
-                System.out.println("✅ CORS Filter - Handling OPTIONS preflight");
-                response.setStatus(HttpServletResponse.SC_NO_CONTENT);
-                return;
-            }
+        if ("OPTIONS".equalsIgnoreCase(method) && isOriginAllowed(origin)) {
+            System.out.println("✅ CORS Filter - Handling OPTIONS preflight");
+            response.setStatus(HttpServletResponse.SC_NO_CONTENT);
+            return;
         }
 
         filterChain.doFilter(servletRequest, servletResponse);
