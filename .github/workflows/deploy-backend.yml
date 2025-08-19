@@ -280,13 +280,10 @@ jobs:
                     proxy_set_header X-Forwarded-Host $host;
                     proxy_set_header X-Forwarded-Port $server_port;
                     
-                    # CORS headers for API - ALWAYS add these
-                    add_header Access-Control-Allow-Origin "https://gcgcm-fe.s3.eu-north-1.amazonaws.com" always;
-                    add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS" always;
-                    add_header Access-Control-Allow-Headers "Authorization, Content-Type, Accept, Origin, X-Requested-With" always;
-                    add_header Access-Control-Allow-Credentials "true" always;
+                    # Don't add CORS headers here - let Spring Boot handle them
+                    # This prevents header duplication conflicts
                     
-                    # Handle preflight requests
+                    # Handle preflight requests at Nginx level
                     if ($request_method = 'OPTIONS') {
                         add_header Access-Control-Allow-Origin "https://gcgcm-fe.s3.eu-north-1.amazonaws.com" always;
                         add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS" always;
