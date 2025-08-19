@@ -105,7 +105,9 @@ jobs:
               "Resource": "arn:aws:s3:::'${{ secrets.S3_BUCKET_NAME }}'/*"
             }
           ]
-        }'    - name: Deploy Frontend Files to EC2 Nginx
+        }'
+        
+    - name: Deploy Frontend Files to EC2 Nginx
       uses: appleboy/ssh-action@v1.0.0
       with:
         host: ${{ secrets.EC2_HOST }}
