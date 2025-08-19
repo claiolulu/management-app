@@ -1,14 +1,9 @@
 # ===========================================
-# PRODUCTION ENVIRONMENT CONFIGURATION
+# PRODUCTION ENVIRONMENT OVERRIDES
 # ===========================================
-
-server:
-  port: ${SERVER_PORT:5001}
-  servlet:
-    context-path: ${SERVER_CONTEXT_PATH:/api}
+# Only contains settings that differ from main application.yml
 
 spring:
-  # Production Database Configuration
   datasource:
     url: jdbc:mysql://${DB_HOST}:${DB_PORT:3306}/${DB_NAME}?createDatabaseIfNotExist=true&useSSL=${DB_USE_SSL:true}&allowPublicKeyRetrieval=true&serverTimezone=${DB_TIMEZONE:UTC}
     username: ${DB_USERNAME}
@@ -25,53 +20,23 @@ spring:
   sql:
     init:
       mode: ${SQL_INIT_MODE:never}
-      
-  # Production Email Configuration
-  mail:
-    host: ${MAIL_HOST}
-    port: ${MAIL_PORT:587}
-    username: ${MAIL_USERNAME}
-    password: ${MAIL_PASSWORD}
-    properties:
-      mail:
-        smtp:
-          auth: ${MAIL_SMTP_AUTH:true}
-          starttls:
-            enable: ${MAIL_SMTP_STARTTLS:true}
-          ssl:
-            trust: ${MAIL_HOST}
 
-# JWT Configuration for Production
+# JWT Production Settings - Shorter Expiration
 jwt:
-  secret: ${JWT_SECRET}
   expiration: ${JWT_EXPIRATION_MS:3600000} # 1 hour for production
 
-# App Configuration for Production
+# Production File Paths
 app:
-  frontend:
-    url: ${FRONTEND_URL}
   upload:
     path: ${UPLOAD_PATH:/opt/figma-web-app/uploads/profiles}
   email:
-    reset-token-expiry-minutes: ${EMAIL_RESET_TOKEN_EXPIRY:15}
+    reset-token-expiry-minutes: ${EMAIL_RESET_TOKEN_EXPIRY:15} # Shorter for security
 
-# Production-specific CORS origins
-cors:
-  allowed-origins: 
-    - ${FRONTEND_URL}
-    - ${CORS_ORIGIN_PROD}
-    - ${CORS_ORIGIN_EC2_HTTPS}
-    - ${CORS_ORIGIN_S3}
-  allowed-methods:
-    - GET
-    - POST
-    - PUT
-    - DELETE
-    - OPTIONS
-  allowed-headers: "*"
-  allow-credentials: ${CORS_ALLOW_CREDENTIALS:true}
+file:
+  upload:
+    dir: ${FILE_UPLOAD_DIR:/opt/figma-web-app/uploads/profiles/}
 
-# Production logging - minimal for performance
+# Production Logging - Less Verbose
 logging:
   level:
     "[com.figma.webapp]": ${LOG_LEVEL_APP:INFO}
@@ -79,13 +44,10 @@ logging:
     "[org.springframework.web]": ${LOG_LEVEL_WEB:WARN}
     "[org.hibernate.SQL]": ${LOG_LEVEL_SQL:ERROR}
     root: ${LOG_LEVEL_ROOT:WARN}
-  pattern:
-    console: "${LOG_PATTERN_CONSOLE:%d{yyyy-MM-dd HH:mm:ss} - %msg%n}"
-    file: "${LOG_PATTERN_FILE:%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n}"
   file:
     name: ${LOG_FILE:/var/log/figma-app/application.log}
 
-# Management endpoints - restricted in production
+# Production Management - Restricted Endpoints
 management:
   endpoints:
     web:
@@ -94,8 +56,3 @@ management:
   endpoint:
     health:
       show-details: ${MANAGEMENT_HEALTH_DETAILS:when-authorized}
-
-# File upload directory for production
-file:
-  upload:
-    dir: ${FILE_UPLOAD_DIR:/opt/figma-web-app/uploads/profiles/}
