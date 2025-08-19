@@ -35,8 +35,11 @@ public class SecurityConfig {
     @Autowired
     private JwtRequestFilter jwtRequestFilter;
 
-    @Value("${cors.allowed-origins}")
+    @Value("${cors.allowed-origins:}")
     private List<String> allowedOrigins;
+
+    @Value("${frontend.url:http://localhost:3000}")
+    private String frontendUrl;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -76,8 +79,23 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         
-        // Use allowed origins from application.yml
-        configuration.setAllowedOriginPatterns(allowedOrigins);
+        // Handle CORS origins - use frontend URL as fallback if list is empty
+        if (allowedOrigins != null && !allowedOrigins.isEmpty() && 
+            allowedOrigins.stream().anyMatch(origin -> origin != null && !origin.trim().isEmpty())) {
+            // Filter out empty origins and use them
+            List<String> validOrigins = allowedOrigins.stream()
+                .filter(origin -> origin != null && !origin.trim().isEmpty())
+                .toList();
+            configuration.setAllowedOriginPatterns(validOrigins);
+        } else {
+            // Fallback CORS configuration
+            configuration.setAllowedOriginPatterns(Arrays.asList(
+                frontendUrl,
+                "http://localhost:3000",
+                "http://localhost:5173",
+                "https://*.amazonaws.com"
+            ));
+        }
         
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
