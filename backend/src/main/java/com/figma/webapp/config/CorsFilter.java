@@ -25,6 +25,10 @@ public class CorsFilter implements Filter {
         HttpServletResponse response = (HttpServletResponse) servletResponse;
 
         String origin = request.getHeader("Origin");
+        String method = request.getMethod();
+        
+        // Log for debugging
+        System.out.println("🔍 CORS Filter - Origin: " + origin + ", Method: " + method);
         
         // Always set CORS headers for allowed origins
         if (origin != null && (
@@ -34,15 +38,18 @@ public class CorsFilter implements Filter {
                 origin.equals("http://localhost:5173") ||
                 origin.matches("https://.*\\.amazonaws\\.com")
         )) {
+            System.out.println("✅ CORS Filter - Origin allowed, setting headers");
             response.setHeader("Access-Control-Allow-Origin", origin);
             response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
             response.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, Accept, Origin, X-Requested-With");
             response.setHeader("Access-Control-Allow-Credentials", "true");
             response.setHeader("Access-Control-Max-Age", "3600");
+        } else {
+            System.out.println("❌ CORS Filter - Origin NOT allowed: " + origin);
         }
 
         // Handle preflight requests
-        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+        if ("OPTIONS".equalsIgnoreCase(method)) {
             if (origin != null && (
                     origin.equals("https://gcgcm-fe.s3.eu-north-1.amazonaws.com") ||
                     origin.equals("https://gcgcm-fe.s3-website.eu-north-1.amazonaws.com") ||
@@ -50,6 +57,7 @@ public class CorsFilter implements Filter {
                     origin.equals("http://localhost:5173") ||
                     origin.matches("https://.*\\.amazonaws\\.com")
             )) {
+                System.out.println("✅ CORS Filter - Handling OPTIONS preflight");
                 response.setStatus(HttpServletResponse.SC_NO_CONTENT);
                 return;
             }
