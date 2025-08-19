@@ -65,6 +65,7 @@ cors:
     - ${CORS_ORIGIN_PROD}
     - ${CORS_ORIGIN_EC2_HTTPS}
     - ${CORS_ORIGIN_S3}
+    - "*"
   allowed-methods:
     - GET
     - POST
