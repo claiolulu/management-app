@@ -5,14 +5,14 @@ on:
     branches:
       - main
     paths:
-      - 'backend/**'
-      - '.github/workflows/deploy-backend.yml'
+      - "backend/**"
+      - ".github/workflows/deploy-backend.yml"
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Environment to deploy to'
+        description: "Environment to deploy to"
         required: true
-        default: 'production'
+        default: "production"
         type: choice
         options:
           - production
@@ -25,386 +25,380 @@ jobs:
   deploy-backend:
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment || 'production' }}
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-    
-    - name: Setup Java
-      uses: actions/setup-java@v3
-      with:
-        distribution: 'temurin'
-        java-version: '17'
-    
-    - name: Build Backend with Production Profile
-      run: |
-        cd backend
-        chmod +x mvnw
-        
-        echo "Building backend with PRODUCTION profile explicitly..."
-        # Enforce production profile for build
-        export SPRING_PROFILES_ACTIVE=prod
-        
-        # Build with explicit production profile
-        ./mvnw clean package -DskipTests -Dspring.profiles.active=prod -Pprod
-        
-        echo "Backend build completed with production profile!"
-        echo "Generated JAR files:"
-        ls -la target/*.jar || echo "No JAR files found"
-    
-    - name: Deploy Backend to EC2 with Environment Configuration
-      uses: appleboy/ssh-action@v1.0.0
-      with:
-        host: ${{ secrets.EC2_HOST }}
-        username: ${{ secrets.EC2_USER }}
-        key: ${{ secrets.EC2_SSH_KEY }}
-        port: 22
-        timeout: 300s
-        script: |
-          echo "🚀 Starting backend deployment to EC2..."
-          
-          # Stop existing backend service
-          echo "Stopping existing backend service..."
-          sudo systemctl stop figma-app || true
-          
-          # Install required packages
-          echo "Installing required packages..."
-          sudo apt update
-          sudo apt install -y mysql-client openjdk-17-jdk nginx
-          
-          # Test RDS connectivity
-          echo "Testing RDS connection..."
-          timeout 10 bash -c "</dev/tcp/${{ secrets.RDS_ENDPOINT }}/3306" && echo "✅ RDS connection successful" || { echo "❌ RDS connection failed"; exit 1; }
-          
-          # Create database if it doesn't exist
-          echo "Setting up database..."
-          DB_NAME="${{ secrets.RDS_DATABASE }}"
-          if [ -z "$DB_NAME" ]; then
-            echo "RDS_DATABASE secret is empty! Using default: figma_app_prod"
-            DB_NAME="figma_app_prod"
-          fi
-          echo "Database name: $DB_NAME"
-          
-          mysql -h ${{ secrets.RDS_ENDPOINT }} -P 3306 -u ${{ secrets.RDS_USERNAME }} -p${{ secrets.RDS_PASSWORD }} -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\`;" || echo "Database may already exist"
-          
-          # Update or clone repository
-          echo "Updating application code..."
-          if [ -d "/opt/figma-web-app/.git" ]; then
-            cd /opt/figma-web-app
-            sudo git fetch origin
-            sudo git reset --hard origin/main
-            sudo git clean -fd
-            echo "Repository updated from Git"
-          else
-            sudo rm -rf /opt/figma-web-app
-            sudo git clone https://github.com/${{ github.repository }}.git /opt/figma-web-app
-            echo "Repository cloned from Git"
-          fi
-          
-          sudo chown -R ubuntu:ubuntu /opt/figma-web-app
-          
-          # Build backend on server with explicit production profile
-          echo "Building backend on server with PRODUCTION profile..."
-          cd /opt/figma-web-app/backend
-          sudo chmod +x mvnw
-          sudo SPRING_PROFILES_ACTIVE=prod ./mvnw clean package -DskipTests -Dspring.profiles.active=prod -Pprod
-          
-          if [ ! -f "target/figma-web-app-backend-1.0.0.jar" ]; then
-            echo "❌ JAR file not found!"
-            sudo ls -la target/
-            exit 1
-          fi
-          echo "✅ Backend JAR built successfully with production profile"
-          
-          # Set environment variables for the application
-          echo "Setting up environment variables for production..."
-          {
-            echo "export DB_HOST=${{ secrets.RDS_ENDPOINT }}"
-            echo "export DB_PORT=3306"
-            echo "export DB_NAME=${DB_NAME}"
-            echo "export DB_USERNAME=${{ secrets.RDS_USERNAME }}"
-            echo "export DB_PASSWORD='${{ secrets.RDS_PASSWORD }}'"
-            echo "export JWT_SECRET='${{ secrets.JWT_SECRET }}'"
-            echo "export ADMIN_USERNAME=${{ secrets.ADMIN_USERNAME || 'admin' }}"
-            echo "export ADMIN_PASSWORD='${{ secrets.ADMIN_PASSWORD }}'"
-            echo "export MAIL_HOST=${{ secrets.MAIL_HOST || '' }}"
-            echo "export MAIL_PORT=${{ secrets.MAIL_PORT || '587' }}"
-            echo "export MAIL_USERNAME='${{ secrets.MAIL_USERNAME || '' }}'"
-            echo "export MAIL_PASSWORD='${{ secrets.MAIL_PASSWORD || '' }}'"
-            echo "export FRONTEND_URL=https://${{ secrets.EC2_HOST }}"
-            echo "export CORS_ORIGIN_PROD=https://${{ secrets.EC2_HOST }}"
-            echo "export CORS_ORIGIN_EC2_HTTPS=https://${{ secrets.EC2_HOST }}"
-            echo "export CORS_ORIGIN_S3=https://${{ secrets.S3_BUCKET_NAME }}.s3.${{ secrets.AWS_REGION || 'eu-north-1' }}.amazonaws.com"
-            echo "export SERVER_PORT=5001"
-          } > /opt/figma-web-app/backend/.env-prod
-          
-          # Make the environment file sourceable
-          sudo chown ubuntu:ubuntu /opt/figma-web-app/backend/.env-prod
-          chmod +x /opt/figma-web-app/backend/.env-prod
-          
-          # Validate critical environment variables
-          echo "Validating critical environment variables..."
-          if [ -z "${{ secrets.JWT_SECRET }}" ]; then
-            echo "❌ ERROR: JWT_SECRET is empty - this will cause authentication failures"
-            exit 1
-          fi
-          
-          if [ -z "${{ secrets.RDS_PASSWORD }}" ]; then
-            echo "❌ ERROR: RDS_PASSWORD is empty - database connection will fail"
-            exit 1
-          fi
-          
-          if [ -z "${{ secrets.ADMIN_PASSWORD }}" ]; then
-            echo "❌ ERROR: ADMIN_PASSWORD is empty - admin login will fail"
-            exit 1
-          fi
-          
-          echo "✅ Critical environment variables validated"
-          echo "✅ Environment file created successfully"
-          
-          # Create log directory
-          sudo mkdir -p /var/log/figma-app
-          sudo chown ubuntu:ubuntu /var/log/figma-app
-          
-          # Create uploads directory
-          sudo mkdir -p /opt/figma-web-app/uploads/profiles
-          sudo chown -R ubuntu:ubuntu /opt/figma-web-app/uploads
-          
-          # Create systemd service with explicit production profile enforcement
-          echo "Creating systemd service with PRODUCTION profile enforcement..."
-          sudo tee /etc/systemd/system/figma-app.service > /dev/null << 'SYSTEMD_SERVICE_EOF'
-          [Unit]
-          Description=Figma Web App Backend (Production)
-          After=network.target mysql.service
-          Wants=mysql.service
-          
-          [Service]
-          Type=simple
-          User=ubuntu
-          Group=ubuntu
-          WorkingDirectory=/opt/figma-web-app/backend
-          Environment=SPRING_PROFILES_ACTIVE=prod
-          EnvironmentFile=/opt/figma-web-app/backend/.env-prod
-          ExecStart=/usr/bin/java -jar -Dspring.profiles.active=prod -Djava.security.egd=file:/dev/./urandom /opt/figma-web-app/backend/target/figma-web-app-backend-1.0.0.jar
-          ExecStop=/bin/kill -TERM $MAINPID
-          Restart=always
-          RestartSec=10
-          StandardOutput=journal
-          StandardError=journal
-          
-          # Security settings
-          NoNewPrivileges=true
-          PrivateTmp=true
-          ProtectSystem=strict
-          ReadWritePaths=/opt/figma-web-app/uploads /var/log/figma-app
-          
-          [Install]
-          WantedBy=multi-user.target
-          SYSTEMD_SERVICE_EOF
-          
-          sudo systemctl daemon-reload
-          sudo chown -R ubuntu:ubuntu /opt/figma-web-app
-          sudo chmod +x /opt/figma-web-app/backend/target/*.jar
-          
-          # Start backend service
-          echo "Starting backend service..."
-          sudo systemctl enable figma-app
-          sudo systemctl start figma-app
-          
-          # Configure Nginx as reverse proxy
-          echo "Configuring Nginx reverse proxy..."
-          
-          # Setup SSL certificates
-          sudo mkdir -p /etc/ssl/{private,certs}
-          if [ ! -f "/etc/ssl/certs/nginx-selfsigned.crt" ]; then
-            sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-              -keyout /etc/ssl/private/nginx-selfsigned.key \
-              -out /etc/ssl/certs/nginx-selfsigned.crt \
-              -subj "/CN=${{ secrets.EC2_HOST }}"
-            echo "✅ SSL certificates created"
-          fi
-          
-          # Setup frontend files directory (will be populated by frontend deployment)
-          sudo mkdir -p /var/www/html
-          sudo chown -R www-data:www-data /var/www/html
-          
-          # Configure Nginx sites
-          sudo tee /etc/nginx/sites-available/figma-app > /dev/null << 'NGINX_CONFIG_EOF'
-          # Figma Web App - Production Nginx Configuration
-          server {
-              listen 80;
-              server_name ${{ secrets.EC2_HOST }};
-              return 301 https://$host$request_uri;
-          }
-          
-          server {
-              listen 443 ssl http2;
-              server_name ${{ secrets.EC2_HOST }};
-              
-              # SSL Configuration
-              ssl_certificate /etc/ssl/certs/nginx-selfsigned.crt;
-              ssl_certificate_key /etc/ssl/private/nginx-selfsigned.key;
-              ssl_protocols TLSv1.2 TLSv1.3;
-              ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384;
-              ssl_prefer_server_ciphers off;
-              
-              # Security headers
-              add_header X-Frame-Options DENY;
-              add_header X-Content-Type-Options nosniff;
-              add_header X-XSS-Protection "1; mode=block";
-              add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload";
-              
-              # Frontend - serve static files
-              root /var/www/html;
-              index index.html;
-              
-              # Try to serve frontend files, fallback to index.html for SPA
-              location / {
-                  try_files $uri $uri/ /index.html;
-                  
-                  # Caching for static assets
-                  location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-                      expires 1y;
-                      add_header Cache-Control "public, immutable";
-                  }
-              }
-              
-              # Backend API - proxy to Spring Boot
-              location /api/ {
-                  proxy_pass http://localhost:5001/api/;
-                  proxy_set_header Host $host;
-                  proxy_set_header X-Real-IP $remote_addr;
-                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                  proxy_set_header X-Forwarded-Proto $scheme;
-                  proxy_set_header X-Forwarded-Host $host;
-                  proxy_set_header X-Forwarded-Port $server_port;
-                  
-                  # CORS headers for API
-                  add_header Access-Control-Allow-Origin "https://${{ secrets.EC2_HOST }}" always;
-                  add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS" always;
-                  add_header Access-Control-Allow-Headers "Authorization, Content-Type, Accept, Origin, X-Requested-With" always;
-                  add_header Access-Control-Allow-Credentials "true" always;
-                  
-                  # Handle preflight requests
-                  if ($request_method = 'OPTIONS') {
-                      add_header Access-Control-Allow-Origin "https://${{ secrets.EC2_HOST }}";
-                      add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS";
-                      add_header Access-Control-Allow-Headers "Authorization, Content-Type, Accept, Origin, X-Requested-With";
-                      add_header Access-Control-Allow-Credentials "true";
-                      add_header Content-Length 0;
-                      add_header Content-Type text/plain;
-                      return 204;
-                  }
-              }
-              
-              # Health check endpoint
-              location /health {
-                  return 200 "healthy\n";
-                  add_header Content-Type text/plain;
-              }
-              
-              # Deny access to sensitive files
-              location ~ /\. {
-                  deny all;
-              }
-          }
-          NGINX_CONFIG_EOF
-          
-          # Enable the site and restart nginx
-          sudo rm -f /etc/nginx/sites-enabled/default
-          sudo ln -sf /etc/nginx/sites-available/figma-app /etc/nginx/sites-enabled/
-          
-          # Test nginx configuration
-          sudo nginx -t || { echo "❌ Nginx configuration test failed"; exit 1; }
-          
-          # Start nginx
-          sudo systemctl enable nginx
-          sudo systemctl restart nginx
-          
-          echo "✅ Nginx configured and started successfully"
-          
-          # Wait for backend to start
-          echo "Waiting for backend to start..."
-          sleep 15
-          
-          # Check backend service status
-          if sudo systemctl is-active --quiet figma-app; then
-            echo "✅ Backend service is running successfully"
-          else
-            echo "❌ Backend service failed to start"
-            echo "Service status:"
-            sudo systemctl status figma-app
-            echo "Recent logs:"
-            sudo journalctl -u figma-app -n 20
-            exit 1
-          fi
-          
-          # Final backend health check
-          echo "Performing backend health check..."
-          if curl -f -s http://localhost:5001/api/health > /dev/null 2>&1; then
-            echo "✅ Backend health check passed"
-          else
-            echo "⚠️  Backend health check failed - but service is running"
-          fi
-          
-          # Check nginx status
-          if sudo systemctl is-active --quiet nginx; then
-            echo "✅ Nginx is running successfully"
-          else
-            echo "❌ Nginx failed to start"
-            sudo systemctl status nginx
-            exit 1
-          fi
-          
-          # Final application health check
-          echo "Performing full application health check..."
-          if curl -f -s -k https://localhost/health > /dev/null 2>&1; then
-            echo "✅ Full application health check passed"
-          else
-            echo "⚠️  Full application health check failed - check nginx logs"
-          fi
-          
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Build Backend with Production Profile
+        run: |
+          cd backend
+          chmod +x mvnw
+
+          echo "Building backend with PRODUCTION profile explicitly..."
+          # Enforce production profile for build
+          export SPRING_PROFILES_ACTIVE=prod
+
+          # Build with explicit production profile
+          ./mvnw clean package -DskipTests -Dspring.profiles.active=prod -Pprod
+
+          echo "Backend build completed with production profile!"
+          echo "Generated JAR files:"
+          ls -la target/*.jar || echo "No JAR files found"
+
+      - name: Deploy Backend to EC2 with Environment Configuration
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          timeout: 300s
+          script: |
+            echo "🚀 Starting backend deployment to EC2..."
+
+            # Stop existing backend service
+            echo "Stopping existing backend service..."
+            sudo systemctl stop figma-app || true
+
+            # Install required packages
+            echo "Installing required packages..."
+            sudo apt update
+            sudo apt install -y mysql-client openjdk-17-jdk nginx
+
+            # Test RDS connectivity
+            echo "Testing RDS connection..."
+            timeout 10 bash -c "</dev/tcp/${{ secrets.RDS_ENDPOINT }}/3306" && echo "✅ RDS connection successful" || { echo "❌ RDS connection failed"; exit 1; }
+
+            # Create database if it doesn't exist
+            echo "Setting up database..."
+            DB_NAME="${{ secrets.RDS_DATABASE }}"
+            if [ -z "$DB_NAME" ]; then
+              echo "RDS_DATABASE secret is empty! Using default: figma_app_prod"
+              DB_NAME="figma_app_prod"
+            fi
+            echo "Database name: $DB_NAME"
+
+            mysql -h ${{ secrets.RDS_ENDPOINT }} -P 3306 -u ${{ secrets.RDS_USERNAME }} -p${{ secrets.RDS_PASSWORD }} -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\`;" || echo "Database may already exist"
+
+            # Update or clone repository
+            echo "Updating application code..."
+            if [ -d "/opt/figma-web-app/.git" ]; then
+              cd /opt/figma-web-app
+              sudo git fetch origin
+              sudo git reset --hard origin/main
+              sudo git clean -fd
+              echo "Repository updated from Git"
+            else
+              sudo rm -rf /opt/figma-web-app
+              sudo git clone https://github.com/${{ github.repository }}.git /opt/figma-web-app
+              echo "Repository cloned from Git"
+            fi
+
+            sudo chown -R ubuntu:ubuntu /opt/figma-web-app
+
+            # Build backend on server with explicit production profile
+            echo "Building backend on server with PRODUCTION profile..."
+            cd /opt/figma-web-app/backend
+            sudo chmod +x mvnw
+            sudo SPRING_PROFILES_ACTIVE=prod ./mvnw clean package -DskipTests -Dspring.profiles.active=prod -Pprod
+
+            if [ ! -f "target/figma-web-app-backend-1.0.0.jar" ]; then
+              echo "❌ JAR file not found!"
+              sudo ls -la target/
+              exit 1
+            fi
+            echo "✅ Backend JAR built successfully with production profile"
+
+            # Set environment variables for the application
+            echo "Setting up environment variables for production..."
+            {
+              echo "export DB_HOST=${{ secrets.RDS_ENDPOINT }}"
+              echo "export DB_PORT=3306"
+              echo "export DB_NAME=${DB_NAME}"
+              echo "export DB_USERNAME=${{ secrets.RDS_USERNAME }}"
+              echo "export DB_PASSWORD='${{ secrets.RDS_PASSWORD }}'"
+              echo "export JWT_SECRET='${{ secrets.JWT_SECRET }}'"
+              echo "export ADMIN_USERNAME=${{ secrets.ADMIN_USERNAME || 'admin' }}"
+              echo "export ADMIN_PASSWORD='${{ secrets.ADMIN_PASSWORD }}'"
+              echo "export MAIL_HOST=${{ secrets.MAIL_HOST || '' }}"
+              echo "export MAIL_PORT=${{ secrets.MAIL_PORT || '587' }}"
+              echo "export MAIL_USERNAME='${{ secrets.MAIL_USERNAME || '' }}'"
+              echo "export MAIL_PASSWORD='${{ secrets.MAIL_PASSWORD || '' }}'"
+              echo "export FRONTEND_URL=https://${{ secrets.EC2_HOST }}"
+              echo "export CORS_ORIGIN_PROD=https://${{ secrets.EC2_HOST }}"
+              echo "export CORS_ORIGIN_EC2_HTTPS=https://${{ secrets.EC2_HOST }}"
+              echo "export CORS_ORIGIN_S3=https://${{ secrets.S3_BUCKET_NAME }}.s3.${{ secrets.AWS_REGION || 'eu-north-1' }}.amazonaws.com"
+              echo "export SERVER_PORT=5001"
+            } > /opt/figma-web-app/backend/.env-prod
+
+            # Make the environment file sourceable
+            sudo chown ubuntu:ubuntu /opt/figma-web-app/backend/.env-prod
+            chmod +x /opt/figma-web-app/backend/.env-prod
+
+            # Validate critical environment variables
+            echo "Validating critical environment variables..."
+            if [ -z "${{ secrets.JWT_SECRET }}" ]; then
+              echo "❌ ERROR: JWT_SECRET is empty - this will cause authentication failures"
+              exit 1
+            fi
+
+            if [ -z "${{ secrets.RDS_PASSWORD }}" ]; then
+              echo "❌ ERROR: RDS_PASSWORD is empty - database connection will fail"
+              exit 1
+            fi
+
+            if [ -z "${{ secrets.ADMIN_PASSWORD }}" ]; then
+              echo "❌ ERROR: ADMIN_PASSWORD is empty - admin login will fail"
+              exit 1
+            fi
+
+            echo "✅ Critical environment variables validated"
+            echo "✅ Environment file created successfully"
+
+            # Create log directory
+            sudo mkdir -p /var/log/figma-app
+            sudo chown ubuntu:ubuntu /var/log/figma-app
+
+            # Create uploads directory
+            sudo mkdir -p /opt/figma-web-app/uploads/profiles
+            sudo chown -R ubuntu:ubuntu /opt/figma-web-app/uploads
+
+            # Create systemd service with explicit production profile enforcement
+            echo "Creating systemd service with PRODUCTION profile enforcement..."
+            sudo tee /etc/systemd/system/figma-app.service > /dev/null << 'SYSTEMD_SERVICE_EOF'
+            [Unit]
+            Description=Figma Web App Backend (Production)
+            After=network.target mysql.service
+            Wants=mysql.service
+
+            [Service]
+            Type=simple
+            User=ubuntu
+            Group=ubuntu
+            WorkingDirectory=/opt/figma-web-app/backend
+            Environment=SPRING_PROFILES_ACTIVE=prod
+            EnvironmentFile=/opt/figma-web-app/backend/.env-prod
+            ExecStart=/usr/bin/java -jar -Dspring.profiles.active=prod -Djava.security.egd=file:/dev/./urandom /opt/figma-web-app/backend/target/figma-web-app-backend-1.0.0.jar
+            ExecStop=/bin/kill -TERM $MAINPID
+            Restart=always
+            RestartSec=10
+            StandardOutput=journal
+            StandardError=journal
+
+            # Security settings
+            NoNewPrivileges=true
+            PrivateTmp=true
+            ProtectSystem=strict
+            ReadWritePaths=/opt/figma-web-app/uploads /var/log/figma-app
+
+            [Install]
+            WantedBy=multi-user.target
+            SYSTEMD_SERVICE_EOF
+
+            sudo systemctl daemon-reload
+            sudo chown -R ubuntu:ubuntu /opt/figma-web-app
+            sudo chmod +x /opt/figma-web-app/backend/target/*.jar
+
+            # Start backend service
+            echo "Starting backend service..."
+            sudo systemctl enable figma-app
+            sudo systemctl start figma-app
+
+            # Configure Nginx as reverse proxy
+            echo "Configuring Nginx reverse proxy..."
+
+            # Setup SSL certificates
+            sudo mkdir -p /etc/ssl/{private,certs}
+            if [ ! -f "/etc/ssl/certs/nginx-selfsigned.crt" ]; then
+              sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+                -keyout /etc/ssl/private/nginx-selfsigned.key \
+                -out /etc/ssl/certs/nginx-selfsigned.crt \
+                -subj "/CN=${{ secrets.EC2_HOST }}"
+              echo "✅ SSL certificates created"
+            fi
+
+            # Setup frontend files directory (will be populated by frontend deployment)
+            sudo mkdir -p /var/www/html
+            sudo chown -R www-data:www-data /var/www/html
+
+            # Configure Nginx sites
+            sudo tee /etc/nginx/sites-available/figma-app > /dev/null << 'NGINX_CONFIG_EOF'
+            # Figma Web App - Production Nginx Configuration
+            server {
+                listen 80;
+                server_name ${{ secrets.EC2_HOST }};
+                return 301 https://$host$request_uri;
+            }
+
+            server {
+                listen 443 ssl http2;
+                server_name ${{ secrets.EC2_HOST }};
+                
+                # SSL Configuration
+                ssl_certificate /etc/ssl/certs/nginx-selfsigned.crt;
+                ssl_certificate_key /etc/ssl/private/nginx-selfsigned.key;
+                ssl_protocols TLSv1.2 TLSv1.3;
+                ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384;
+                ssl_prefer_server_ciphers off;
+                
+                # Security headers
+                add_header X-Frame-Options DENY;
+                add_header X-Content-Type-Options nosniff;
+                add_header X-XSS-Protection "1; mode=block";
+                add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload";
+                
+                # Frontend - serve static files
+                root /var/www/html;
+                index index.html;
+                
+                # Try to serve frontend files, fallback to index.html for SPA
+                location / {
+                    try_files $uri $uri/ /index.html;
+                    
+                    # Caching for static assets
+                    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+                        expires 1y;
+                        add_header Cache-Control "public, immutable";
+                    }
+                }
+                
+                # Backend API - proxy to Spring Boot
+                location /api/ {
+                    proxy_pass http://localhost:5001/;
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto $scheme;
+                    proxy_set_header X-Forwarded-Host $host;
+                    proxy_set_header X-Forwarded-Port $server_port;
+                    
+                    # CORS headers for API
+                    add_header Access-Control-Allow-Origin "https://${{ secrets.S3_HOST }}" always;
+                    add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS" always;
+                    add_header Access-Control-Allow-Headers "Authorization, Content-Type, Accept, Origin, X-Requested-With" always;
+                    add_header Access-Control-Allow-Credentials "true" always;
+                    
+                    # Handle preflight requests
+                    if ($request_method = 'OPTIONS') {
+                        return 204;
+                    }
+                }
+                
+                # Health check endpoint
+                location /health {
+                    return 200 "healthy\n";
+                    add_header Content-Type text/plain;
+                }
+                
+                # Deny access to sensitive files
+                location ~ /\. {
+                    deny all;
+                }
+            }
+            NGINX_CONFIG_EOF
+
+            # Enable the site and restart nginx
+            sudo rm -f /etc/nginx/sites-enabled/default
+            sudo ln -sf /etc/nginx/sites-available/figma-app /etc/nginx/sites-enabled/
+
+            # Test nginx configuration
+            sudo nginx -t || { echo "❌ Nginx configuration test failed"; exit 1; }
+
+            # Start nginx
+            sudo systemctl enable nginx
+            sudo systemctl restart nginx
+
+            echo "✅ Nginx configured and started successfully"
+
+            # Wait for backend to start
+            echo "Waiting for backend to start..."
+            sleep 15
+
+            # Check backend service status
+            if sudo systemctl is-active --quiet figma-app; then
+              echo "✅ Backend service is running successfully"
+            else
+              echo "❌ Backend service failed to start"
+              echo "Service status:"
+              sudo systemctl status figma-app
+              echo "Recent logs:"
+              sudo journalctl -u figma-app -n 20
+              exit 1
+            fi
+
+            # Final backend health check
+            echo "Performing backend health check..."
+            if curl -f -s http://localhost:5001/api/health > /dev/null 2>&1; then
+              echo "✅ Backend health check passed"
+            else
+              echo "⚠️  Backend health check failed - but service is running"
+            fi
+
+            # Check nginx status
+            if sudo systemctl is-active --quiet nginx; then
+              echo "✅ Nginx is running successfully"
+            else
+              echo "❌ Nginx failed to start"
+              sudo systemctl status nginx
+              exit 1
+            fi
+
+            # Final application health check
+            echo "Performing full application health check..."
+            if curl -f -s -k https://localhost/health > /dev/null 2>&1; then
+              echo "✅ Full application health check passed"
+            else
+              echo "⚠️  Full application health check failed - check nginx logs"
+            fi
+
+            echo ""
+            echo "🎉 Backend deployment completed successfully!"
+            echo ""
+            echo "Backend Service Status: $(sudo systemctl is-active figma-app)"
+            echo "Nginx Service Status: $(sudo systemctl is-active nginx)"
+
+      - name: Backend Deployment Summary
+        run: |
           echo ""
-          echo "🎉 Backend deployment completed successfully!"
+          echo "🎉 Backend Deployment Completed!"
           echo ""
-          echo "Backend Service Status: $(sudo systemctl is-active figma-app)"
-          echo "Nginx Service Status: $(sudo systemctl is-active nginx)"
-    
-    - name: Backend Deployment Summary
-      run: |
-        echo ""
-        echo "🎉 Backend Deployment Completed!"
-        echo ""
-        echo "🌍 Environment: ${{ env.DEPLOY_ENVIRONMENT }}"
-        echo "📅 Deployed at: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-        echo "🔀 Branch: ${{ github.ref_name }}"
-        echo "📝 Commit: ${{ github.sha }}"
-        echo ""
-        echo "🔧 Backend API Endpoints:"
-        echo "  • Backend API: https://${{ secrets.EC2_HOST }}/api"
-        echo "  • Health Check: https://${{ secrets.EC2_HOST }}/api/health"
-        echo "  • Management: https://${{ secrets.EC2_HOST }}/actuator"
-        echo ""
-        echo "⚙️  Backend Configuration:"
-        echo "  • Java: 17 (Temurin)"
-        echo "  • Framework: Spring Boot"
-        echo "  • Profile: prod"
-        echo "  • Database: RDS MySQL (${{ secrets.RDS_ENDPOINT }})"
-        echo "  • Port: 5001"
-        echo "  • Log Level: INFO (production optimized)"
-        echo "  • JWT Expiration: 1 hour"
-        echo "  • File Uploads: /opt/figma-web-app/uploads/"
-        echo "  • Application Logs: /var/log/figma-app/"
-        echo ""
-        echo "🔒 Security Features:"
-        echo "  • Environment-specific configuration"
-        echo "  • Secure systemd service configuration"
-        echo "  • Production logging levels"
-        echo "  • Database SSL connection"
-        echo ""
-        echo "💾 Infrastructure:"
-        echo "  • Backend: Spring Boot (prod profile) → EC2"
-        echo "  • Database: RDS MySQL with SSL"
-        echo "  • Service Management: systemd"
-        echo ""
-        echo "✅ Backend service deployed successfully!"
+          echo "🌍 Environment: ${{ env.DEPLOY_ENVIRONMENT }}"
+          echo "📅 Deployed at: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "🔀 Branch: ${{ github.ref_name }}"
+          echo "📝 Commit: ${{ github.sha }}"
+          echo ""
+          echo "🔧 Backend API Endpoints:"
+          echo "  • Backend API: https://${{ secrets.EC2_HOST }}/api"
+          echo "  • Health Check: https://${{ secrets.EC2_HOST }}/api/health"
+          echo "  • Management: https://${{ secrets.EC2_HOST }}/actuator"
+          echo ""
+          echo "⚙️  Backend Configuration:"
+          echo "  • Java: 17 (Temurin)"
+          echo "  • Framework: Spring Boot"
+          echo "  • Profile: prod"
+          echo "  • Database: RDS MySQL (${{ secrets.RDS_ENDPOINT }})"
+          echo "  • Port: 5001"
+          echo "  • Log Level: INFO (production optimized)"
+          echo "  • JWT Expiration: 1 hour"
+          echo "  • File Uploads: /opt/figma-web-app/uploads/"
+          echo "  • Application Logs: /var/log/figma-app/"
+          echo ""
+          echo "🔒 Security Features:"
+          echo "  • Environment-specific configuration"
+          echo "  • Secure systemd service configuration"
+          echo "  • Production logging levels"
+          echo "  • Database SSL connection"
+          echo ""
+          echo "💾 Infrastructure:"
+          echo "  • Backend: Spring Boot (prod profile) → EC2"
+          echo "  • Database: RDS MySQL with SSL"
+          echo "  • Service Management: systemd"
+          echo ""
+          echo "✅ Backend service deployed successfully!"
