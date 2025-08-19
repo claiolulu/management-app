@@ -258,19 +258,20 @@ jobs:
                 root /var/www/html;
                 index index.html;
                 
+                    # Serve static assets directly
+                location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+                    expires 1y;
+                    add_header Cache-Control "public, immutable";
+                    try_files $uri =404;
+                }
+
                 # Try to serve frontend files, fallback to index.html for SPA
                 location / {
-                    try_files $uri $uri/ /index.html;
-                    
-                    # Caching for static assets
-                    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-                        expires 1y;
-                        add_header Cache-Control "public, immutable";
-                    }
+                    try_files $uri $uri/ @backend;
                 }
-                
-                # Backend API - proxy to Spring Boot
-                location / {
+
+                location @backend {
+
                     proxy_pass http://localhost:5001/;
                     proxy_set_header Host $host;
                     proxy_set_header X-Real-IP $remote_addr;
