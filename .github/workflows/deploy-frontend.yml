@@ -28,12 +28,18 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: 'eu-north-1'
     
+    - name: Clean npm cache and folders
+      working-directory: ./frontend
+      run: |
+        echo "🧹 Cleaning npm cache and folders..."
+        rm -rf node_modules package-lock.json
+        npm install
+    
     - name: Build Frontend
       timeout-minutes: 15
       working-directory: ./frontend
       run: |
-        echo "📦 Installing dependencies..."
-        npm install --legacy-peer-deps --no-optional
+        echo "📦 Dependencies already installed..."
         
         echo "⚙️ Creating production config..."
         cat > .env.production << EOF
