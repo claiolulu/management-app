@@ -1,10 +1,6 @@
 package com.figma.webapp.config;
 
-import java.util.Arrays;
-import java.util.List;
-
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -17,9 +13,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import com.figma.webapp.security.JwtAuthenticationEntryPoint;
 import com.figma.webapp.security.JwtRequestFilter;
@@ -35,12 +28,6 @@ public class SecurityConfig {
     @Autowired
     private JwtRequestFilter jwtRequestFilter;
 
-    @Value("${cors.allowed-origins:}")
-    private List<String> allowedOrigins;
-
-    @Value("${frontend.url:http://localhost:3000}")
-    private String frontendUrl;
-
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
@@ -54,17 +41,17 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http.csrf(csrf -> csrf.disable())
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .authorizeHttpRequests(authz -> authz
+                .cors(cors -> cors.disable()) // CORS is now handled by WebConfig
+                .authorizeHttpRequests(authz -> authz
                 .requestMatchers("/health", "/register", "/login", "/forgot-password", "/reset-password", "/validate-reset-token/**").permitAll()
                 .requestMatchers("/files/**").permitAll()
                 .requestMatchers("/actuator/**").permitAll()
                 .requestMatchers("/h2-console/**").permitAll()
                 .requestMatchers("/taskstest/**", "/tasks/**").permitAll()
                 .anyRequest().authenticated()
-            )
-            .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthenticationEntryPoint))
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+                )
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthenticationEntryPoint))
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
         // Add JWT filter
         http.addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
@@ -73,30 +60,5 @@ public class SecurityConfig {
         http.headers(headers -> headers.frameOptions(frameOptions -> frameOptions.disable()));
 
         return http.build();
-    }
-
-    @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-        
-        // Handle CORS origins - use frontend URL as fallback if list is empty
-        if (allowedOrigins != null && !allowedOrigins.isEmpty() && 
-            allowedOrigins.stream().anyMatch(origin -> origin != null && !origin.trim().isEmpty())) {
-            // Filter out empty origins and use them
-            List<String> validOrigins = allowedOrigins.stream()
-                .filter(origin -> origin != null && !origin.trim().isEmpty())
-                .toList();
-            configuration.setAllowedOriginPatterns(validOrigins);
-        } else {
-            configuration.setAllowedOriginPatterns(Arrays.asList(frontendUrl, "https://*.amazonaws.com"));
-        }
-        
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("*"));
-        configuration.setAllowCredentials(true);
-        configuration.setMaxAge(3600L);
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
-        return source;
     }
 }

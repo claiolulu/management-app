@@ -28,3 +28,9 @@ spring:
     multipart:
       max-file-size: 10MB
       max-request-size: 10MB
+
+cors:
+  allowed-origins:
+    - "*"
+  allow-credentials: false
+  max-age: 3600
