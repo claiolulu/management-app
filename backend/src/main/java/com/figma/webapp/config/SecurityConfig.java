@@ -1,6 +1,6 @@
 package com.figma.webapp.config;
 
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -88,17 +88,13 @@ public class SecurityConfig {
                 .toList();
             configuration.setAllowedOriginPatterns(validOrigins);
         } else {
-            // Fallback CORS configuration using centralized constants
-            List<String> fallbackOrigins = new ArrayList<>(CorsConstants.ALLOWED_ORIGINS);
-            fallbackOrigins.add(frontendUrl);
-            fallbackOrigins.add(CorsConstants.AWS_PATTERN);
-            configuration.setAllowedOriginPatterns(fallbackOrigins);
+            configuration.setAllowedOriginPatterns(Arrays.asList(frontendUrl, "https://*.amazonaws.com"));
         }
         
-        configuration.setAllowedMethods(CorsConstants.ALLOWED_METHODS);
-        configuration.setAllowedHeaders(CorsConstants.ALLOWED_HEADERS);
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
-        configuration.setMaxAge(CorsConstants.MAX_AGE);
+        configuration.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
