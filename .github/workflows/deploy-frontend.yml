@@ -60,27 +60,6 @@ jobs:
         echo "📤 Uploading to S3..."
         aws s3 sync dist/ s3://gcgcm-fe/ --delete --exact-timestamps
         
-        echo "🔧 Configuring CORS..."
-        aws s3api put-bucket-cors --bucket gcgcm-fe --cors-configuration '{
-          "CORSRules": [{
-            "AllowedHeaders": ["*"],
-            "AllowedMethods": ["GET", "POST", "PUT", "DELETE", "HEAD"],
-            "AllowedOrigins": ["*"],
-            "MaxAgeSeconds": 3000
-          }]
-        }'
-        
-        echo "🔐 Setting bucket policy..."
-        aws s3api put-bucket-policy --bucket gcgcm-fe --policy '{
-          "Version": "2012-10-17",
-          "Statement": [{
-            "Effect": "Allow",
-            "Principal": "*",
-            "Action": "s3:GetObject",
-            "Resource": "arn:aws:s3:::gcgcm-fe/*"
-          }]
-        }'
-        
         echo "✅ S3 deployment completed!"
     
     - name: Summary
