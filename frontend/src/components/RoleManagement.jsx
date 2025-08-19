@@ -30,7 +30,7 @@ const RoleManagement = ({ onClose, currentUser }) => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('${config.API_BASE_URL}/users/all', {
+      const response = await fetch(`${config.API_BASE_URL}/users/all`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

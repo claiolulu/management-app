@@ -65,7 +65,7 @@ const TaskDetail = ({ taskId, onBack, user }) => {
   const fetchStaffUsers = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('${config.API_BASE_URL}/tasks/staff', {
+      const response = await fetch(`${config.API_BASE_URL}/tasks/staff`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

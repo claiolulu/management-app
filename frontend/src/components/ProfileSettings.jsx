@@ -95,7 +95,7 @@ const ProfileSettings = ({ user, onClose, onUpdateProfile }) => {
       formData.append('avatar', profileData.profilePictureFile);
     } else if (profileData.removePicture) {
       formData.append('removeProfilePicture', 'true');
-    }      const response = await fetch('${config.API_BASE_URL}/profile', {
+    }      const response = await fetch(`${config.API_BASE_URL}/profile`, {
         method: 'PUT',
         body: formData,
         headers: {

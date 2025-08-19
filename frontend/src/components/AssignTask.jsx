@@ -46,7 +46,7 @@ const AssignTask = ({ onClose, onTaskAssigned }) => {
   const fetchStaffUsers = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('${config.API_BASE_URL}/tasks/staff', {
+      const response = await fetch(`${config.API_BASE_URL}/tasks/staff`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -110,7 +110,7 @@ const AssignTask = ({ onClose, onTaskAssigned }) => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('${config.API_BASE_URL}/tasks/assign', {
+      const response = await fetch(`${config.API_BASE_URL}/tasks/assign`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

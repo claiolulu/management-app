@@ -76,7 +76,7 @@ function ResetPasswordPage({ onBackToLogin }) {
     setMessage('');
 
     try {
-      const response = await fetch('${config.API_BASE_URL}/reset-password', {
+      const response = await fetch(`${config.API_BASE_URL}/reset-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
