@@ -88,11 +88,13 @@ public class SecurityConfig {
                 .toList();
             configuration.setAllowedOriginPatterns(validOrigins);
         } else {
-            // Fallback CORS configuration
+            // Fallback CORS configuration with explicit S3 URL
             configuration.setAllowedOriginPatterns(Arrays.asList(
                 frontendUrl,
                 "http://localhost:3000",
                 "http://localhost:5173",
+                "https://gcgcm-fe.s3.eu-north-1.amazonaws.com",
+                "https://gcgcm-fe.s3-website.eu-north-1.amazonaws.com",
                 "https://*.amazonaws.com"
             ));
         }
@@ -100,6 +102,7 @@ public class SecurityConfig {
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L); // Cache preflight for 1 hour
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;

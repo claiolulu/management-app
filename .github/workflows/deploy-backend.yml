@@ -134,7 +134,8 @@ jobs:
               echo "export FRONTEND_URL=https://${{ secrets.EC2_HOST }}"
               echo "export CORS_ORIGIN_PROD=https://${{ secrets.EC2_HOST }}"
               echo "export CORS_ORIGIN_EC2_HTTPS=https://${{ secrets.EC2_HOST }}"
-              echo "export CORS_ORIGIN_S3=https://${{ secrets.S3_BUCKET_NAME }}.s3.${{ secrets.AWS_REGION || 'eu-north-1' }}.amazonaws.com"
+              echo "export CORS_ORIGIN_S3=https://gcgcm-fe.s3.eu-north-1.amazonaws.com"
+              echo "export CORS_ALLOWED_ORIGINS=https://gcgcm-fe.s3.eu-north-1.amazonaws.com,https://gcgcm-fe.s3-website.eu-north-1.amazonaws.com"
               echo "export SERVER_PORT=5001"
             } > /opt/figma-web-app/backend/.env-prod
 
@@ -265,7 +266,7 @@ jobs:
                     try_files $uri =404;
                 }
 
-                # Try to serve frontend files, fallback to index.html for SPA
+                # Try to serve frontend files, fallback to backend for API routes
                 location / {
                     try_files $uri $uri/ @backend;
                 }
@@ -279,9 +280,8 @@ jobs:
                     proxy_set_header X-Forwarded-Host $host;
                     proxy_set_header X-Forwarded-Port $server_port;
                     
-                    
-                    # CORS headers for API
-                    add_header Access-Control-Allow-Origin "https://${{ secrets.S3_HOST }}" always;
+                    # CORS headers for API - ALWAYS add these
+                    add_header Access-Control-Allow-Origin "https://gcgcm-fe.s3.eu-north-1.amazonaws.com" always;
                     add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS" always;
                     add_header Access-Control-Allow-Headers "Authorization, Content-Type, Accept, Origin, X-Requested-With" always;
                     add_header Access-Control-Allow-Credentials "true" always;
@@ -292,6 +292,9 @@ jobs:
                         add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS" always;
                         add_header Access-Control-Allow-Headers "Authorization, Content-Type, Accept, Origin, X-Requested-With" always;
                         add_header Access-Control-Allow-Credentials "true" always;
+                        add_header Access-Control-Max-Age "3600";
+                        add_header Content-Length "0";
+                        add_header Content-Type "text/plain charset=UTF-8";
                         return 204;
                     }
                 }
