@@ -71,33 +71,41 @@ jobs:
         echo "Build output:"
         ls -la dist/
     
-    - name: Deploy Frontend to S3 and EC2
-      run: |
-        cd frontend
-        echo "Deploying frontend to S3 bucket: ${{ secrets.S3_BUCKET_NAME }}"
-        
-        # Deploy to S3 (backup and CDN)
-        aws s3 sync dist/ s3://${{ secrets.S3_BUCKET_NAME }}/ --delete
-        
-        # Set bucket policy for public read access
-        aws s3api put-bucket-policy --bucket ${{ secrets.S3_BUCKET_NAME }} --policy '{
-          "Version": "2012-10-17",
-          "Statement": [
-            {
-              "Effect": "Allow",
-              "Principal": "*",
-              "Action": "s3:GetObject",
-              "Resource": "arn:aws:s3:::'${{ secrets.S3_BUCKET_NAME }}'/*"
-            }
-          ]
-        }' || echo "Warning: Could not set bucket policy. May need manual configuration."
-        
-        # Configure website hosting
-        aws s3 website s3://${{ secrets.S3_BUCKET_NAME }} --index-document index.html --error-document index.html || echo "Website configuration may already exist"
-        
-        echo "✅ Frontend deployed to S3 successfully!"
-    
-    - name: Deploy Frontend Files to EC2 Nginx
+      - name: Deploy Frontend to S3
+        run: |
+          echo "Deploying frontend to S3 bucket: ${{ secrets.S3_BUCKET_NAME }}"
+          
+          # Sync files to S3
+          aws s3 sync dist/ s3://${{ secrets.S3_BUCKET_NAME }}/ --delete
+          
+          # Configure CORS for S3 bucket
+          echo 'Setting up CORS configuration...'
+          aws s3api put-bucket-cors --bucket ${{ secrets.S3_BUCKET_NAME }} --cors-configuration '{
+            "CORSRules": [
+              {
+                "AllowedHeaders": ["*"],
+                "AllowedMethods": ["GET", "POST", "PUT", "DELETE", "HEAD"],  
+                "AllowedOrigins": ["*"],
+                "ExposeHeaders": ["ETag"],
+                "MaxAgeSeconds": 3000
+              }
+            ]
+          }'
+          echo 'CORS configuration applied successfully!'
+          
+          # Set bucket policy for public read
+          aws s3api put-bucket-policy --bucket ${{ secrets.S3_BUCKET_NAME }} --policy '{
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Sid": "PublicReadGetObject", 
+                "Effect": "Allow",
+                "Principal": "*",
+                "Action": "s3:GetObject",
+                "Resource": "arn:aws:s3:::'${{ secrets.S3_BUCKET_NAME }}'/*"
+              }
+            ]
+          }'    - name: Deploy Frontend Files to EC2 Nginx
       uses: appleboy/ssh-action@v1.0.0
       with:
         host: ${{ secrets.EC2_HOST }}
