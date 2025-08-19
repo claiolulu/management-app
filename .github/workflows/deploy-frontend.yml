@@ -71,12 +71,12 @@ jobs:
         echo "Build output:"
         ls -la dist/
     
-    - name: Deploy Frontend to S3
+    - name: Deploy Frontend to S3 and EC2
       run: |
         cd frontend
         echo "Deploying frontend to S3 bucket: ${{ secrets.S3_BUCKET_NAME }}"
         
-        # Sync files to S3
+        # Deploy to S3 (backup and CDN)
         aws s3 sync dist/ s3://${{ secrets.S3_BUCKET_NAME }}/ --delete
         
         # Set bucket policy for public read access
@@ -96,6 +96,57 @@ jobs:
         aws s3 website s3://${{ secrets.S3_BUCKET_NAME }} --index-document index.html --error-document index.html || echo "Website configuration may already exist"
         
         echo "✅ Frontend deployed to S3 successfully!"
+    
+    - name: Deploy Frontend Files to EC2 Nginx
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USER }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        port: 22
+        timeout: 300s
+        script: |
+          echo "🚀 Deploying frontend files to EC2 Nginx..."
+          
+          # Download frontend files from S3 to Nginx directory
+          sudo rm -rf /var/www/html/*
+          aws s3 sync s3://${{ secrets.S3_BUCKET_NAME }}/ /var/www/html/ || {
+            echo "❌ Failed to sync from S3, trying Git repository..."
+            
+            # Fallback: get files from Git repository
+            if [ -d "/opt/figma-web-app/.git" ]; then
+              cd /opt/figma-web-app && sudo git fetch && sudo git reset --hard origin/main
+            else
+              sudo rm -rf /opt/figma-web-app
+              sudo git clone https://github.com/${{ github.repository }}.git /opt/figma-web-app
+            fi
+            
+            # Build frontend on server if needed
+            if [ -d "/opt/figma-web-app/frontend/dist" ]; then
+              sudo cp -r /opt/figma-web-app/frontend/dist/* /var/www/html/
+            else
+              echo "❌ No frontend dist directory found"
+              exit 1
+            fi
+          }
+          
+          # Set proper permissions
+          sudo chown -R www-data:www-data /var/www/html
+          sudo find /var/www/html -type f -exec chmod 644 {} \;
+          sudo find /var/www/html -type d -exec chmod 755 {} \;
+          
+          # Verify files were deployed
+          echo "Frontend files in /var/www/html:"
+          sudo ls -la /var/www/html/
+          
+          # Test nginx configuration and reload
+          sudo nginx -t && sudo systemctl reload nginx || {
+            echo "❌ Nginx configuration error"
+            sudo nginx -t
+            exit 1
+          }
+          
+          echo "✅ Frontend files deployed to EC2 Nginx successfully!"
     
     - name: Frontend Deployment Summary
       run: |
