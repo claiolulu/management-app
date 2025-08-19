@@ -71,6 +71,9 @@ This project uses separate GitHub Actions workflows for deploying different comp
 
 ## 🔧 Configuration
 
+### ⚠️ **DEPLOYMENT FAILING? Missing Secrets?**
+**👉 [Complete GitHub Secrets Setup Guide](../../GITHUB_SECRETS_SETUP.md)** - Fixes deployment failures due to missing environment variables.
+
 ### Required GitHub Secrets
 All workflows require these secrets to be configured in repository settings:
 
