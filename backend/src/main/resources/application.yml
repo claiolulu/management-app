@@ -1,131 +1,30 @@
 # ===========================================
-# FIGMA WEB APP - MAIN CONFIGURATION
+# FIGMA WEB APP - FRAMEWORK ESSENTIALS ONLY
 # ===========================================
-# Common configuration shared across all environments
-# Profile-specific overrides are in application-{profile}.yml
-
-server:
-  port: ${SERVER_PORT:5001}
-  servlet:
-    context-path: ${SERVER_CONTEXT_PATH:/api}
+# This file contains ONLY Spring Boot framework configuration
+# ALL environment-specific configs are in profile-specific files
+# Use --spring.profiles.active=dev or --spring.profiles.active=prod
 
 spring:
   main:
     allow-circular-references: true
   application:
-    name: ${APP_NAME:figma-web-app-backend}
+    name: figma-web-app-backend
   
-  # Database Configuration
-  datasource:
-    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:figma_app}?createDatabaseIfNotExist=true&useSSL=${DB_USE_SSL:false}&allowPublicKeyRetrieval=true&serverTimezone=${DB_TIMEZONE:UTC}
-    username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD}
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    
-  # JPA Configuration
+  # Framework-only JPA settings (no environment specifics)
   jpa:
-    hibernate:
-      ddl-auto: ${JPA_DDL_AUTO:update}
-    show-sql: ${JPA_SHOW_SQL:false}
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
-        "[format_sql]": ${JPA_FORMAT_SQL:false}
     defer-datasource-initialization: true
     
-  # SQL Initialization
+  # Framework-only SQL settings
   sql:
     init:
-      mode: ${SQL_INIT_MODE:never}
       continue-on-error: true
 
-  # File Upload Configuration
+  # Framework-only multipart settings
   servlet:
     multipart:
-      max-file-size: ${MULTIPART_MAX_FILE_SIZE:10MB}
-      max-request-size: ${MULTIPART_MAX_REQUEST_SIZE:10MB}
-      
-  # Security Configuration
-  security:
-    user:
-      name: ${ADMIN_USERNAME:admin}
-      password: ${ADMIN_PASSWORD}
-  
-  # Email Configuration
-  mail:
-    host: ${MAIL_HOST:smtp.gmail.com}
-    port: ${MAIL_PORT:587}
-    username: ${MAIL_USERNAME:}
-    password: ${MAIL_PASSWORD:}
-    properties:
-      mail:
-        smtp:
-          auth: ${MAIL_SMTP_AUTH:true}
-          starttls:
-            enable: ${MAIL_SMTP_STARTTLS:true}
-          ssl:
-            trust: ${MAIL_HOST:smtp.gmail.com}
-
-# JWT Configuration
-jwt:
-  secret: ${JWT_SECRET}
-  expiration: ${JWT_EXPIRATION_MS:86400000}
-
-# CORS Configuration
-cors:
-  allowed-origins: 
-    - ${CORS_ORIGIN_LOCALHOST_3000:http://localhost:3000}
-    - ${CORS_ORIGIN_LOCALHOST_3001:http://localhost:3001}
-    - ${CORS_ORIGIN_LOCALHOST_5173:http://localhost:5173}
-    - ${CORS_ORIGIN_EC2_HTTP:}
-    - ${CORS_ORIGIN_EC2_HTTPS:}
-    - ${CORS_ORIGIN_PROD:}
-    - ${CORS_ORIGIN_S3:}
-    - ${FRONTEND_URL:}
-  allowed-methods:
-    - GET
-    - POST
-    - PUT
-    - DELETE
-    - OPTIONS
-  allowed-headers: "*"
-  allow-credentials: ${CORS_ALLOW_CREDENTIALS:true}
-
-# Application Configuration
-app:
-  frontend:
-    url: ${FRONTEND_URL:http://localhost:3000}
-  upload:
-    path: ${UPLOAD_PATH:uploads/profiles}
-  email:
-    reset-token-expiry-minutes: ${EMAIL_RESET_TOKEN_EXPIRY:30}
-
-# File Upload Configuration
-file:
-  upload:
-    dir: ${FILE_UPLOAD_DIR:uploads/profiles/}
-
-# Logging Configuration
-logging:
-  level:
-    "[com.figma.webapp]": ${LOG_LEVEL_APP:INFO}
-    "[org.springframework.security]": ${LOG_LEVEL_SECURITY:WARN}
-    "[org.springframework.web]": ${LOG_LEVEL_WEB:WARN}
-    "[org.hibernate.SQL]": ${LOG_LEVEL_SQL:ERROR}
-    "[org.springframework.transaction]": ${LOG_LEVEL_TRANSACTION:WARN}
-    root: ${LOG_LEVEL_ROOT:WARN}
-  pattern:
-    console: "${LOG_PATTERN_CONSOLE:%d{yyyy-MM-dd HH:mm:ss} - %msg%n}"
-    file: "${LOG_PATTERN_FILE:%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n}"
-  file:
-    name: ${LOG_FILE:logs/figma-app.log}
-
-# Management Endpoints
-management:
-  endpoints:
-    web:
-      exposure:
-        include: ${MANAGEMENT_ENDPOINTS:health,info}
-  endpoint:
-    health:
-      show-details: ${MANAGEMENT_HEALTH_DETAILS:when-authorized}
+      max-file-size: 10MB
+      max-request-size: 10MB

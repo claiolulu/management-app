@@ -1,48 +1,116 @@
 # ===========================================
-# DEVELOPMENT ENVIRONMENT OVERRIDES
+# DEVELOPMENT ENVIRONMENT - COMPLETE CONFIGURATION
 # ===========================================
-# Only contains settings that differ from main application.yml
+# ALL development settings in ONE place
+# Activated with: --spring.profiles.active=dev
+
+# Server Configuration
+server:
+  port: 5001
+  servlet:
+    context-path: /api
 
 spring:
+  # Development Database Configuration
   datasource:
-    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:figma_app_dev}?createDatabaseIfNotExist=true&useSSL=${DB_USE_SSL:false}&allowPublicKeyRetrieval=true&serverTimezone=${DB_TIMEZONE:UTC}
+    url: jdbc:mysql://localhost:3306/figma_app_dev?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: root
     password: ${DB_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
     
+  # Development JPA Configuration
   jpa:
     hibernate:
-      ddl-auto: ${JPA_DDL_AUTO:update}
-    show-sql: ${JPA_SHOW_SQL:true}
+      ddl-auto: update
+    show-sql: true
     properties:
       hibernate:
-        "[format_sql]": ${JPA_FORMAT_SQL:true}
+        "[format_sql]": true
         
+  # Development SQL Initialization
   sql:
     init:
-      mode: ${SQL_INIT_MODE:embedded}
+      mode: embedded
+      
+  # Development Security Configuration
+  security:
+    user:
+      name: admin
+      password: ${ADMIN_PASSWORD:admin123}
+      
+  # Development Email Configuration
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+          ssl:
+            trust: smtp.gmail.com
 
-# JWT Development Settings
+# Development JWT Configuration
 jwt:
-  secret: ${JWT_SECRET:dev-jwt-secret-key-change-in-production}
-  expiration: ${JWT_EXPIRATION_MS:86400000} # 24 hours for development
+  secret: ${JWT_SECRET:dev-jwt-secret-key-for-development-only-change-in-production}
+  expiration: 86400000 # 24 hours for development
 
-# Development Logging - More Verbose
+# Development CORS Configuration
+cors:
+  allowed-origins: 
+    - http://localhost:3000
+    - http://localhost:3001
+    - http://localhost:5173
+    - http://127.0.0.1:3000
+    - http://127.0.0.1:5173
+  allowed-methods:
+    - GET
+    - POST
+    - PUT
+    - DELETE
+    - OPTIONS
+    - PATCH
+  allowed-headers: "*"
+  allow-credentials: true
+
+# Development Application Configuration
+app:
+  frontend:
+    url: http://localhost:3000
+  upload:
+    path: uploads/profiles
+  email:
+    reset-token-expiry-minutes: 30
+
+# Development File Upload Configuration
+file:
+  upload:
+    dir: uploads/profiles/
+
+# Development Logging Configuration
 logging:
   level:
-    "[com.figma.webapp]": ${LOG_LEVEL_APP:DEBUG}
-    "[org.springframework.security]": ${LOG_LEVEL_SECURITY:DEBUG}
-    "[org.springframework.web]": ${LOG_LEVEL_WEB:DEBUG}
-    "[org.springframework.transaction]": ${LOG_LEVEL_TRANSACTION:DEBUG}
+    "[com.figma.webapp]": DEBUG
+    "[org.springframework.security]": DEBUG
+    "[org.springframework.web]": DEBUG
+    "[org.springframework.transaction]": DEBUG
+    "[org.hibernate.SQL]": DEBUG
+    root: INFO
   pattern:
-    console: "${LOG_PATTERN_CONSOLE:%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(%5p) %clr(${PID:- }){magenta} %clr(---){faint} %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n%wEx}"
+    console: "%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(%5p) %clr(${PID:- }){magenta} %clr(---){faint} %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n%wEx"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
   file:
-    name: ${LOG_FILE:logs/figma-app-dev.log}
+    name: logs/figma-app-dev.log
 
-# Development Management - All Endpoints Enabled
+# Development Management Configuration
 management:
   endpoints:
     web:
       exposure:
-        include: ${MANAGEMENT_ENDPOINTS:*}
+        include: "*"
   endpoint:
     health:
-      show-details: ${MANAGEMENT_HEALTH_DETAILS:always}
+      show-details: always

@@ -1,58 +1,114 @@
 # ===========================================
-# PRODUCTION ENVIRONMENT OVERRIDES
+# PRODUCTION ENVIRONMENT - COMPLETE CONFIGURATION
 # ===========================================
-# Only contains settings that differ from main application.yml
+# ALL production settings in ONE place
+# Activated with: --spring.profiles.active=prod
+
+# Server Configuration
+server:
+  port: ${SERVER_PORT:5001}
+  servlet:
+    context-path: /api
 
 spring:
+  # Production Database Configuration
   datasource:
-    url: jdbc:mysql://${DB_HOST}:${DB_PORT:3306}/${DB_NAME}?createDatabaseIfNotExist=true&useSSL=${DB_USE_SSL:true}&allowPublicKeyRetrieval=true&serverTimezone=${DB_TIMEZONE:UTC}
+    url: jdbc:mysql://${DB_HOST}:${DB_PORT:3306}/${DB_NAME}?createDatabaseIfNotExist=true&useSSL=true&allowPublicKeyRetrieval=true&serverTimezone=UTC
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
     
+  # Production JPA Configuration
   jpa:
     hibernate:
-      ddl-auto: ${JPA_DDL_AUTO:update}
-    show-sql: ${JPA_SHOW_SQL:false}
+      ddl-auto: update
+    show-sql: false
     properties:
       hibernate:
-        "[format_sql]": ${JPA_FORMAT_SQL:false}
+        "[format_sql]": false
         
+  # Production SQL Initialization
   sql:
     init:
-      mode: ${SQL_INIT_MODE:never}
+      mode: never
+      
+  # Production Security Configuration
+  security:
+    user:
+      name: ${ADMIN_USERNAME}
+      password: ${ADMIN_PASSWORD}
+      
+  # Production Email Configuration
+  mail:
+    host: ${MAIL_HOST}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+          ssl:
+            trust: ${MAIL_HOST}
 
-# JWT Production Settings - Shorter Expiration
+# Production JWT Configuration - Shorter expiration for security
 jwt:
-  expiration: ${JWT_EXPIRATION_MS:3600000} # 1 hour for production
+  secret: ${JWT_SECRET}
+  expiration: 3600000 # 1 hour for production
 
-# Production File Paths
+# Production CORS Configuration - Specific origins only
+cors:
+  allowed-origins: 
+    - ${FRONTEND_URL}
+    - ${CORS_ORIGIN_PROD}
+    - ${CORS_ORIGIN_EC2_HTTPS}
+    - ${CORS_ORIGIN_S3}
+  allowed-methods:
+    - GET
+    - POST
+    - PUT
+    - DELETE
+    - OPTIONS
+  allowed-headers: "*"
+  allow-credentials: true
+
+# Production Application Configuration
 app:
+  frontend:
+    url: ${FRONTEND_URL}
   upload:
-    path: ${UPLOAD_PATH:/opt/figma-web-app/uploads/profiles}
+    path: /opt/figma-web-app/uploads/profiles
   email:
-    reset-token-expiry-minutes: ${EMAIL_RESET_TOKEN_EXPIRY:15} # Shorter for security
+    reset-token-expiry-minutes: 15 # Shorter for security
 
+# Production File Upload Configuration
 file:
   upload:
-    dir: ${FILE_UPLOAD_DIR:/opt/figma-web-app/uploads/profiles/}
+    dir: /opt/figma-web-app/uploads/profiles/
 
-# Production Logging - Less Verbose
+# Production Logging Configuration - Minimal for performance
 logging:
   level:
-    "[com.figma.webapp]": ${LOG_LEVEL_APP:INFO}
-    "[org.springframework.security]": ${LOG_LEVEL_SECURITY:WARN}
-    "[org.springframework.web]": ${LOG_LEVEL_WEB:WARN}
-    "[org.hibernate.SQL]": ${LOG_LEVEL_SQL:ERROR}
-    root: ${LOG_LEVEL_ROOT:WARN}
+    "[com.figma.webapp]": INFO
+    "[org.springframework.security]": WARN
+    "[org.springframework.web]": WARN
+    "[org.hibernate.SQL]": ERROR
+    "[org.springframework.transaction]": WARN
+    root: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
   file:
-    name: ${LOG_FILE:/var/log/figma-app/application.log}
+    name: /var/log/figma-app/application.log
 
-# Production Management - Restricted Endpoints
+# Production Management Configuration - Restricted
 management:
   endpoints:
     web:
       exposure:
-        include: ${MANAGEMENT_ENDPOINTS:health,info}
+        include: "health,info"
   endpoint:
     health:
-      show-details: ${MANAGEMENT_HEALTH_DETAILS:when-authorized}
+      show-details: when-authorized
