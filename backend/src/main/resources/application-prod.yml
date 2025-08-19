@@ -65,6 +65,8 @@ cors:
     - ${CORS_ORIGIN_PROD}
     - ${CORS_ORIGIN_EC2_HTTPS}
     - ${CORS_ORIGIN_S3}
+    - "https://gcgcm-fe.s3.eu-north-1.amazonaws.com"
+    - "https://gcgcm-fe.s3-website.eu-north-1.amazonaws.com"
     - "*"
   allowed-methods:
     - GET
