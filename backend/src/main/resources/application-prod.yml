@@ -60,13 +60,8 @@ jwt:
 
 # Production CORS Configuration - Specific origins only
 cors:
-  allowed-origins: 
-    - ${FRONTEND_URL}
-    - ${CORS_ORIGIN_PROD}
-    - ${CORS_ORIGIN_EC2_HTTPS}
-    - ${CORS_ORIGIN_S3}
-    - "https://gcgcm-fe.s3.eu-north-1.amazonaws.com"
-    - "*"
+  allowed-origins: "claiolulu.com"
+  allow-credentials: ture
 
 # Production Application Configuration
 app:

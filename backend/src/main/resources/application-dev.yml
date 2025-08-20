@@ -60,10 +60,8 @@ jwt:
 
 # Development CORS Configuration
 cors:
-  allowed-origins:
-    - "*"
+  allowed-origins: "*"
   allow-credentials: false
-  max-age: 3600
 
 # Development Application Configuration
 app:
