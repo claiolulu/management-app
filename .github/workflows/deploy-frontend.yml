@@ -10,9 +10,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      EC2_HOST: ${{ secrets.EC2_HOST }}
-
+    
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -45,8 +43,8 @@ jobs:
         
         echo "⚙️ Creating production config..."
         cat > .env.production << EOF
-        BACKEND_API_URL=https://claiolulu.com/api
-        environment=production
+        BACKEND_API_URL=https://${{ secrets.EC2_HOST }}/api
+        ENVIRONMENT=production
         EOF
         
         echo "🏗️ Building frontend..."
@@ -67,5 +65,5 @@ jobs:
     - name: Summary
       run: |
         echo "✅ Frontend deployed successfully!"
-        echo "🌍 S3: https://claiolulu.com"
-        echo "🔗 API: https://claiolulu.com/api"
+        echo "🌍 S3: https://gcgcm-fe.s3.eu-north-1.amazonaws.com"
+        echo "🔗 API: https://${{ secrets.EC2_HOST }}/api"
