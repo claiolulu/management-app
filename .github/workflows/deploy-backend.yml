@@ -231,18 +231,28 @@ jobs:
 
             # Configure Nginx sites
             sudo tee /etc/nginx/sites-available/figma-app > /dev/null << 'NGINX_CONFIG_EOF'
-            # Figma Web App - Production Nginx Configuration
+            # HTTP server block - redirect to HTTPS
             server {
                 listen 80;
-                server_name ${{ secrets.EC2_HOST }};
-                return 301 https://$host$request_uri;
+                server_name claiolulu.com www.claiolulu.com;
+                
+                # Let's Encrypt ACME challenge location (for certbot)
+                location /.well-known/acme-challenge/ {
+                    root /var/www/html;
+                }
+                
+                # Redirect all other HTTP traffic to HTTPS
+                location / {
+                    return 301 https://$server_name$request_uri;
+                }
             }
 
+            # HTTPS server block
             server {
                 listen 443 ssl http2;
-                server_name ${{ secrets.EC2_HOST }};
+                server_name claiolulu.com www.claiolulu.com;
                 
-                # SSL Configuration
+                # SSL certificates - certbot will automatically update these lines
                 ssl_certificate /etc/ssl/certs/nginx-selfsigned.crt;
                 ssl_certificate_key /etc/ssl/private/nginx-selfsigned.key;
                 ssl_protocols TLSv1.2 TLSv1.3;
@@ -255,55 +265,76 @@ jobs:
                 add_header X-XSS-Protection "1; mode=block";
                 add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload";
                 
-                # Frontend - serve static files
-                root /var/www/html;
-                index index.html;
+                # Nginx health check endpoint
+                location /nginx-health {
+                    return 200 "nginx is working\n";
+                    add_header Content-Type text/plain;
+                }
                 
-                    # Serve static assets directly
-                location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-                    expires 1y;
-                    add_header Cache-Control "public, immutable";
-                    try_files $uri =404;
-                }
-
-                # Try to serve frontend files, fallback to backend for API routes
-                location / {
-                    try_files $uri $uri/ @backend;
-                }
-
-                location @backend {
-                    proxy_pass http://localhost:5001;
+                # API proxy configuration - direct to Spring Boot service
+                location /api/ {
+                    proxy_pass http://localhost:5001/api/;
+                    proxy_http_version 1.1;
                     proxy_set_header Host $host;
                     proxy_set_header X-Real-IP $remote_addr;
                     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
                     proxy_set_header X-Forwarded-Proto $scheme;
-                    proxy_set_header X-Forwarded-Host $host;
-                    proxy_set_header X-Forwarded-Port $server_port;
                     
-                    # Don't add CORS headers here - let Spring Boot handle them
-                    # This prevents header duplication conflicts
+                    # CORS headers - allow requests from your domain
+                    add_header Access-Control-Allow-Origin "https://claiolulu.com" always;
+                    add_header Access-Control-Allow-Credentials "true" always;
+                    add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS" always;
+                    add_header Access-Control-Allow-Headers "Authorization, Content-Type, Accept, Origin, X-Requested-With" always;
                     
-                    # Handle preflight requests at Nginx level
-                    if ($request_method = 'OPTIONS') {
-                        add_header Access-Control-Allow-Origin "https://gcgcm-fe.s3.eu-north-1.amazonaws.com" always;
+                    # Handle preflight OPTIONS requests
+                    if ($request_method = OPTIONS) {
+                        add_header Access-Control-Allow-Origin "https://claiolulu.com" always;
                         add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS" always;
                         add_header Access-Control-Allow-Headers "Authorization, Content-Type, Accept, Origin, X-Requested-With" always;
-                        add_header Access-Control-Allow-Credentials "true" always;
                         add_header Access-Control-Max-Age "3600";
                         add_header Content-Length "0";
-                        add_header Content-Type "text/plain charset=UTF-8";
+                        add_header Content-Type "text/plain; charset=UTF-8";
                         return 204;
                     }
                 }
                 
-                # Health check endpoint
-                location /health {
-                    return 200 "healthy\n";
-                    add_header Content-Type text/plain;
+                # Frontend content - proxy to S3 website endpoint
+                location / {
+                    # Proxy to S3 website endpoint (provides HTTPS termination for HTTP S3 website)
+                    proxy_pass http://gcgcm-fe.s3-website.eu-north-1.amazonaws.com;
+                    proxy_set_header Host gcgcm-fe.s3-website.eu-north-1.amazonaws.com;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto $scheme;
+                    
+                    # Remove S3-specific headers that aren't needed
+                    proxy_hide_header x-amz-id-2;
+                    proxy_hide_header x-amz-request-id;
+                    proxy_hide_header x-amz-meta-server-side-encryption;
+                    proxy_hide_header x-amz-server-side-encryption;
+                    
+                    # Add custom headers
+                    add_header X-Served-By "claiolulu.com";
+                    add_header X-Frame-Options DENY;
+                    add_header X-Content-Type-Options nosniff;
+                    
+                    # Cache static assets
+                    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+                        proxy_pass http://gcgcm-fe.s3-website.eu-north-1.amazonaws.com;
+                        proxy_set_header Host gcgcm-fe.s3-website.eu-north-1.amazonaws.com;
+                        expires 1y;
+                        add_header Cache-Control "public, immutable";
+                        add_header X-Served-By "claiolulu.com";
+                    }
                 }
                 
-                # Deny access to sensitive files
+                # Hide hidden files and directories
                 location ~ /\. {
+                    deny all;
+                }
+                
+                # Optional: Block access to sensitive files
+                location ~* \.(env|log|ini|conf|bak|sql)$ {
                     deny all;
                 }
             }
@@ -315,6 +346,9 @@ jobs:
 
             # Test nginx configuration
             sudo nginx -t || { echo "❌ Nginx configuration test failed"; exit 1; }
+
+            # Reinstall SSL certificates
+            sudo certbot --nginx -d claiolulu.com -d www.claiolulu.com --reinstall -n
 
             # Start nginx
             sudo systemctl enable nginx

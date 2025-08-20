@@ -60,7 +60,7 @@ jwt:
 
 # Production CORS Configuration - Specific origins only
 cors:
-  allowed-origins: "claiolulu.com"
+  allowed-origins: "https://claiolulu.com"
   allow-credentials: ture
 
 # Production Application Configuration
