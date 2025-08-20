@@ -67,5 +67,5 @@ jobs:
     - name: Summary
       run: |
         echo "✅ Frontend deployed successfully!"
-        echo "🌍 S3: https://gcgcm-fe.s3.eu-north-1.amazonaws.com"
+        echo "🌍 S3: https://claiolulu.com"
         echo "🔗 API: https://claiolulu.com/api"
