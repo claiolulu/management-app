@@ -1,5 +1,7 @@
-// API Configuration using environment variables with fallback
-const API_BASE_URL = import.meta.env.BACKEND_API_URL || 'http://localhost:5001/api';
+// API Configuration using environment variables with safe fallbacks
+const API_BASE_URL =
+  import.meta.env.BACKEND_API_URL ||
+  (import.meta.env.MODE === 'production' ? `${window.location.origin}/api` : 'http://localhost:5001/api');
 
 console.log('Environment:', import.meta.env.MODE); // For debugging
 console.log('API Base URL:', API_BASE_URL); // For debugging

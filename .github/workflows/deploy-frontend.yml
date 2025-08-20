@@ -42,11 +42,9 @@ jobs:
         echo "📦 Dependencies already installed..."
         
         echo "⚙️ Creating production config..."
-        cat > .env.production << EOF
-        BACKEND_API_URL=https://${{ secrets.EC2_HOST }}/api
-        ENVIRONMENT=production
-        EOF
-        
+        echo "BACKEND_API_URL=https://${{ secrets.EC2_HOST }}/api" > .env.production
+        echo "ENVIRONMENT=production" >> .env.production
+           
         echo "🏗️ Building frontend..."
         npm run build
         
