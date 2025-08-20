@@ -45,7 +45,7 @@ jobs:
         
         echo "⚙️ Creating production config..."
         cat > .env.production << EOF
-        BACKEND_API_URL=https://${EC2_HOST}/api
+        BACKEND_API_URL=https://claiolulu.com/api
         environment=production
         EOF
         
@@ -68,4 +68,4 @@ jobs:
       run: |
         echo "✅ Frontend deployed successfully!"
         echo "🌍 S3: https://gcgcm-fe.s3.eu-north-1.amazonaws.com"
-        echo "🔗 API: https://${EC2_HOST}/api"
+        echo "🔗 API: https://claiolulu.com/api"
